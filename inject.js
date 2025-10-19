@@ -2,7 +2,9 @@
 // This script runs in the page context before YouTube's scripts load
 
 (function () {
-  console.log("🎯 Injected script running - intercepting XMLHttpRequest");
+  console.log(
+    "🎯 Injected script running - intercepting XMLHttpRequest and fetch"
+  );
 
   // Store original XMLHttpRequest
   const OriginalXHR = window.XMLHttpRequest;
@@ -26,7 +28,7 @@
         if (this.readyState === 4 && this.status === 200) {
           // cSpell:ignore timedtext
           if (requestUrl && requestUrl.includes("/api/timedtext")) {
-            console.log("🎯 Captured timedtext request:", requestUrl);
+            console.log("🎯 Captured timedtext XHR request:", requestUrl);
 
             // Dispatch custom event with transcript data
             const event = new CustomEvent("youtubeTranscriptCaptured", {
@@ -47,9 +49,38 @@
     return xhr;
   };
 
-  // Copy static properties and prototype
-  Object.setPrototypeOf(window.XMLHttpRequest, OriginalXHR);
-  Object.setPrototypeOf(window.XMLHttpRequest.prototype, OriginalXHR.prototype);
+  // Store original fetch
+  const OriginalFetch = window.fetch;
 
-  console.log("✅ XMLHttpRequest override installed");
+  // Override fetch in page context
+  window.fetch = async function (input, init) {
+    const url = typeof input === "string" ? input : input.url;
+    const response = await OriginalFetch.apply(this, arguments);
+
+    // Intercept timedtext API calls
+    if (url && url.includes("/api/timedtext") && response.ok) {
+      try {
+        const clone = response.clone();
+        const text = await clone.text();
+
+        console.log("🎯 Captured timedtext fetch request:", url);
+
+        // Dispatch custom event with transcript data
+        const event = new CustomEvent("youtubeTranscriptCaptured", {
+          detail: {
+            url: url,
+            response: text,
+            timestamp: Date.now(),
+          },
+        });
+        document.dispatchEvent(event);
+      } catch (error) {
+        console.warn("Failed to capture fetch response:", error);
+      }
+    }
+
+    return response;
+  };
+
+  console.log("✅ XMLHttpRequest and fetch overrides installed");
 })();

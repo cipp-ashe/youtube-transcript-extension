@@ -291,123 +291,6 @@ class YouTubeTranscriptExtractor {
     }
   }
 
-  // Extract POT (Proof of Origin Token) from YouTube page data
-  extractPotToken() {
-    try {
-      console.log("Starting POT token extraction...");
-
-      // Try to find pot token in ytInitialPlayerResponse first
-      if (window.ytInitialPlayerResponse) {
-        const playerResponse = window.ytInitialPlayerResponse;
-        console.log("Checking ytInitialPlayerResponse for POT token...");
-
-        // Check if pot token exists in captions renderer
-        if (
-          playerResponse.captions &&
-          playerResponse.captions.playerCaptionsTracklistRenderer &&
-          playerResponse.captions.playerCaptionsTracklistRenderer.captionTracks
-        ) {
-          const tracks =
-            playerResponse.captions.playerCaptionsTracklistRenderer
-              .captionTracks;
-          for (const track of tracks) {
-            if (track.baseUrl) {
-              const url = new URL(track.baseUrl);
-              const pot = url.searchParams.get("pot");
-              if (pot) {
-                console.log(
-                  "✓ Found POT token in caption track baseUrl:",
-                  pot.substring(0, 20) + "..."
-                );
-                return pot;
-              }
-            }
-          }
-        }
-
-        // Deep search in playerResponse for pot tokens
-        const responseStr = JSON.stringify(playerResponse);
-        console.log("Searching playerResponse JSON string for POT patterns...");
-
-        // Try multiple patterns for pot token
-        const potPatterns = [
-          /["\']pot["\']:\s*["\']([^"']+)["\']/,
-          /pot=([^&"'\s]+)/g,
-          /pot["\']?\s*[:=]\s*["\']([MN][a-zA-Z0-9+/=_%]{20,})["\']/, // Base64-like pattern starting with M or N
-          /"pot":"([^"]+)"/,
-          /'pot':'([^']+)'/,
-        ];
-
-        for (const pattern of potPatterns) {
-          const matches = responseStr.matchAll(pattern);
-          for (const match of matches) {
-            if (match[1] && match[1].length > 10) {
-              console.log(
-                "✓ Found POT token in playerResponse:",
-                match[1].substring(0, 20) + "..."
-              );
-              return decodeURIComponent(match[1]);
-            }
-          }
-        }
-      }
-
-      // Try to find POT token in ytInitialData
-      if (window.ytInitialData) {
-        console.log("Checking ytInitialData for POT token...");
-        const dataStr = JSON.stringify(window.ytInitialData);
-        const potMatch =
-          dataStr.match(
-            /pot["\']?\s*[:=]\s*["\']([MN][a-zA-Z0-9+/=_%]{20,})["\']/
-          ) || dataStr.match(/"pot":"([^"]+)"/);
-        if (potMatch) {
-          console.log(
-            "✓ Found POT token in ytInitialData:",
-            potMatch[1].substring(0, 20) + "..."
-          );
-          return decodeURIComponent(potMatch[1]);
-        }
-      }
-
-      // Comprehensive search in all page scripts
-      console.log("Searching all script tags for POT token...");
-      const scripts = document.querySelectorAll("script");
-      for (let i = 0; i < scripts.length; i++) {
-        const script = scripts[i];
-        if (script.textContent && script.textContent.length > 100) {
-          const content = script.textContent;
-
-          // Look for pot parameter patterns with more specific regex
-          const potPatterns = [
-            /pot["\']?\s*[:=]\s*["\']([MN][a-zA-Z0-9+/=_%]{30,})["\']/, // Long Base64-like starting with M/N
-            /pot=([MN][A-Za-z0-9+/=%]{30,})(?:[&"'\s]|$)/, // URL parameter format
-            /"pot":"([MN][^"]{20,})"/, // JSON format
-            /'pot':'([MN][^']{20,})'/, // Single quotes
-          ];
-
-          for (const pattern of potPatterns) {
-            const potMatch = content.match(pattern);
-            if (potMatch && potMatch[1]) {
-              console.log(
-                "✓ Found POT token in script tag:",
-                potMatch[1].substring(0, 20) + "..."
-              );
-              return decodeURIComponent(potMatch[1]);
-            }
-          }
-        }
-      }
-
-      console.log(
-        "❌ POT token not found in any location, proceeding without it"
-      );
-      return null;
-    } catch (error) {
-      console.error("Error extracting POT token:", error);
-      return null;
-    }
-  }
-
   // Decode HTML entities in transcript text
   decodeHTMLEntities(text) {
     const textarea = document.createElement("textarea");
@@ -438,72 +321,25 @@ class YouTubeTranscriptExtractor {
         throw new Error("Invalid caption track provided");
       }
 
-      // Use the original baseUrl as-is (it contains necessary auth parameters)
-      let transcriptUrl = captionTrack.baseUrl;
-
-      // Log the original URL to debug
-      console.log("Original baseUrl:", transcriptUrl);
-
-      // Always ensure we request JSON format and add required parameters
-      const urlObj = new URL(transcriptUrl);
+      // Use the original baseUrl with minimal modifications
+      // Keep existing auth parameters, only ensure JSON format
+      const urlObj = new URL(captionTrack.baseUrl);
       if (!urlObj.searchParams.has("fmt")) {
         urlObj.searchParams.set("fmt", "json3");
       }
 
-      // Add additional parameters that YouTube's player uses
-      // cSpell:ignore xorb xobt xovt
-      if (!urlObj.searchParams.has("xorb")) {
-        urlObj.searchParams.set("xorb", "2");
-        urlObj.searchParams.set("xobt", "3");
-        urlObj.searchParams.set("xovt", "3");
-      }
-
-      // Add client parameters
-      // cSpell:ignore cver cplayer UNIPLAYER
-      if (!urlObj.searchParams.has("c")) {
-        urlObj.searchParams.set("c", "WEB");
-        urlObj.searchParams.set("cver", "2.20251017.01.00");
-        urlObj.searchParams.set("cplayer", "UNIPLAYER");
-      }
-
-      // Add device/browser parameters (extracted from working request)
-      // cSpell:ignore cbrand cbrver cosver cplatform
-      if (!urlObj.searchParams.has("cbrand")) {
-        urlObj.searchParams.set("cbrand", "apple");
-        urlObj.searchParams.set("cbr", "Chrome");
-        urlObj.searchParams.set("cbrver", "140.0.0.0");
-        urlObj.searchParams.set("cos", "Macintosh");
-        urlObj.searchParams.set("cosver", "10_15_7");
-        urlObj.searchParams.set("cplatform", "DESKTOP");
-      }
-
-      // Add proof of origin token if not present
-      // cSpell:ignore potc
-      if (!urlObj.searchParams.has("potc")) {
-        urlObj.searchParams.set("potc", "1");
-
-        // Try to extract pot token from the page
-        const potToken = this.extractPotToken();
-        if (potToken) {
-          urlObj.searchParams.set("pot", potToken);
-          console.log("Added POT token:", potToken.substring(0, 20) + "...");
-        }
-      }
-
-      transcriptUrl = urlObj.toString();
-      console.log("Enhanced URL with all parameters:", transcriptUrl);
-
+      const transcriptUrl = urlObj.toString();
       console.log("Fetching transcript from:", transcriptUrl);
 
       const response = await fetch(transcriptUrl);
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const responseText = await response.text();
       console.log(
-        "Response content (first 500 chars):",
-        responseText.substring(0, 500)
+        "Response content (first 200 chars):",
+        responseText.substring(0, 200)
       );
 
       // Try to parse as JSON first (YouTube's new format)
@@ -554,15 +390,33 @@ class YouTubeTranscriptExtractor {
 // Initialize the extractor when the script loads
 const transcriptExtractor = new YouTubeTranscriptExtractor();
 
-// Also listen for navigation changes (YouTube is a SPA)
+// Listen for navigation changes using History API (more efficient than MutationObserver)
 let lastUrl = location.href;
-new MutationObserver(() => {
-  const url = location.href;
-  if (url !== lastUrl) {
-    lastUrl = url;
+
+// Hook into History API for SPA navigation detection
+const originalPushState = history.pushState;
+const originalReplaceState = history.replaceState;
+
+history.pushState = function (...args) {
+  originalPushState.apply(history, args);
+  checkUrlChange();
+};
+
+history.replaceState = function (...args) {
+  originalReplaceState.apply(history, args);
+  checkUrlChange();
+};
+
+// Also listen for popstate events
+window.addEventListener("popstate", checkUrlChange);
+
+function checkUrlChange() {
+  const currentUrl = location.href;
+  if (currentUrl !== lastUrl) {
+    lastUrl = currentUrl;
     // Reset state when navigating to a new video
     transcriptExtractor.currentVideoId = null;
     transcriptExtractor.captionTracks = [];
     console.log("YouTube navigation detected, state reset");
   }
-}).observe(document, { subtree: true, childList: true });
+}

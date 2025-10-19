@@ -39,8 +39,14 @@ class TranscriptExtractorBackground {
 
         // Open the extension popup by opening action (this will show the popup)
         chrome.action.openPopup().catch(() => {
-          // If openPopup fails (some Chrome versions), we could open a tab instead
-          console.log("Could not open popup directly");
+          // Fallback: open transcript viewer in new tab
+          console.log(
+            "Opening popup failed, opening transcript viewer in new tab"
+          );
+          chrome.tabs.create({
+            url: chrome.runtime.getURL("popup.html?notification=true"),
+            active: true,
+          });
         });
       }
     });

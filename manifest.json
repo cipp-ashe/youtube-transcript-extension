@@ -3,7 +3,7 @@
   "name": "YouTube Transcript Extractor",
   "version": "1.0.0",
   "description": "Capture transcripts from YouTube videos including auto-generated captions and unlisted videos",
-  "permissions": ["activeTab", "storage", "webRequest", "notifications"],
+  "permissions": ["activeTab", "storage", "notifications"],
   "host_permissions": ["*://*.youtube.com/*"],
   "background": {
     "service_worker": "background.js"
