@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>YouTube Transcript Extractor</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>📝 YouTube Transcript</h1>
+        <p class="subtitle">Extract transcripts from any YouTube video</p>
+      </header>
+
+      <!-- Loading State -->
+      <div id="loading" class="section hidden">
+        <div class="spinner"></div>
+        <p>Loading video information...</p>
+      </div>
+
+      <!-- Error State -->
+      <div id="error" class="section hidden">
+        <div class="error-icon">⚠️</div>
+        <p id="error-message">Something went wrong</p>
+        <button id="retry-btn" class="btn btn-secondary">Try Again</button>
+      </div>
+
+      <!-- Video Info Section -->
+      <div id="video-info" class="section hidden">
+        <div class="video-details">
+          <h3 id="video-title">Video Title</h3>
+          <p class="video-id">ID: <span id="video-id-display"></span></p>
+        </div>
+
+        <!-- Language Selection -->
+        <div id="language-selection" class="hidden">
+          <label for="language-select">Choose Language:</label>
+          <select id="language-select" class="form-control">
+            <option value="">Select a language...</option>
+          </select>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="button-group">
+          <button id="extract-btn" class="btn btn-primary">
+            📝 Extract Transcript
+          </button>
+          <button id="refresh-btn" class="btn btn-secondary">🔄 Refresh</button>
+        </div>
+
+        <!-- Auto-Capture Notice -->
+        <div class="info-notice">
+          <p>
+            <strong>💡 Tip:</strong> Enable CC on the video player and
+            transcripts will be captured automatically!
+          </p>
+        </div>
+
+        <!-- Transcript Captured Banner -->
+        <div id="transcript-captured-banner" class="captured-banner hidden">
+          <div class="captured-icon">✅</div>
+          <div class="captured-text">
+            <strong>Transcript Captured!</strong>
+            <p>Auto-captured from video captions</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- No Transcripts Available -->
+      <div id="no-transcripts" class="section hidden">
+        <div class="info-icon">ℹ️</div>
+        <h3>No Transcripts Available</h3>
+        <p>This video doesn't have captions or subtitles available.</p>
+        <button id="refresh-no-transcripts" class="btn btn-secondary">
+          Try Again
+        </button>
+      </div>
+
+      <!-- Results Section -->
+      <div id="results" class="section hidden">
+        <div class="results-header">
+          <h3>📄 Transcript Results</h3>
+          <div class="transcript-info">
+            <span id="language-info" class="info-badge">English</span>
+            <span id="type-info" class="info-badge">Auto-generated</span>
+            <span id="word-count" class="info-badge">0 words</span>
+          </div>
+        </div>
+
+        <!-- Format Toggle -->
+        <div class="format-toggle">
+          <label class="toggle-switch" for="timestamp-toggle">
+            <input type="checkbox" id="timestamp-toggle" />
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">Include timestamps</span>
+          </label>
+        </div>
+
+        <!-- Transcript Display -->
+        <div class="transcript-container">
+          <textarea
+            id="transcript-text"
+            readonly
+            placeholder="Transcript will appear here..."
+          ></textarea>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="button-group">
+          <button id="copy-btn" class="btn btn-primary">
+            📋 Copy to Clipboard
+          </button>
+          <button id="download-btn" class="btn btn-secondary">
+            💾 Download TXT
+          </button>
+          <button id="extract-another" class="btn btn-secondary">
+            🔄 Extract Another
+          </button>
+        </div>
+
+        <!-- Success Message -->
+        <div id="copy-success" class="success-message hidden">
+          ✅ Copied to clipboard!
+        </div>
+      </div>
+
+      <!-- Not YouTube Page -->
+      <div id="not-youtube" class="section hidden">
+        <div class="info-icon">🎬</div>
+        <h3>Navigate to YouTube</h3>
+        <p>Please go to a YouTube video page and try again.</p>
+        <a
+          href="https://youtube.com"
+          target="_blank"
+          rel="noopener"
+          class="btn btn-primary"
+        >
+          Open YouTube
+        </a>
+      </div>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
