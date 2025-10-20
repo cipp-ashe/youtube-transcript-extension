@@ -51,8 +51,17 @@ This extension intercepts YouTube's internal caption requests with JavaScript:
 ### Export Options
 
 - Copy to clipboard
-- Download as text file (includes video metadata)
+- Download individual transcripts in multiple formats (TXT, JSON, Markdown)
+- Download all captured transcripts in bulk
 - Plain text or timestamped format
+- Includes video metadata (title, language, word count, timestamps)
+
+### Transcript Management
+
+- View list of all captured transcripts
+- Access previously captured transcripts from current session
+- Clear individual transcripts or all at once
+- Transcripts stored in session (cleared on browser restart)
 
 ## How to Use
 
@@ -153,10 +162,12 @@ The extension uses three main components:
 
 ### Storage Strategy
 
-Transcripts are stored in two places:
+Transcripts are stored in session storage:
 
-- Browser memory (for current session)
-- Local browser storage (survives browser restart)
+- Available during current browser session
+- Cleared when browser is closed/restarted
+- Multiple transcripts can be captured and managed
+- No persistent storage across browser sessions
 
 Your data never leaves your device.
 
