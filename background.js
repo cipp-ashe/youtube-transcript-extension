@@ -1,219 +1,384 @@
 // YouTube Transcript Extractor - Background Service Worker
-// Handles automatic transcript capture, storage, and notifications
+// MV3-native event-driven architecture with lifecycle awareness
 
-class TranscriptExtractorBackground {
-  constructor() {
-    this.capturedTranscript = null;
-    this.setupMessageHandlers();
-  }
+// Message action constants
+const ACTIONS = {
+  TRANSCRIPT_CAPTURED: "transcriptCaptured",
+  GET_CAPTURED_TRANSCRIPT: "getCapturedTranscript",
+  CLEAR_CAPTURED_TRANSCRIPT: "clearCapturedTranscript",
+  CLEAR_PREVIOUS_VIDEO_TRANSCRIPTS: "clearPreviousVideoTranscripts",
+  GET_ALL_CAPTURED_TRANSCRIPTS: "getAllCapturedTranscripts",
+  CLEAR_ALL_TRANSCRIPTS: "clearAllTranscripts",
+};
 
-  setupMessageHandlers() {
-    // Handle messages from popup and content scripts
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      console.log("Background received message:", message.action);
+// Storage keys for chrome.storage.session (lifecycle-persistent)
+const STORAGE_KEYS = {
+  CAPTURED_TRANSCRIPTS: "capturedTranscripts",
+};
 
-      switch (message.action) {
-        case "transcriptCaptured":
-          this.handleCapturedTranscript(message.data, sendResponse);
-          return true;
-
-        case "getCapturedTranscript":
-          this.getCapturedTranscript(sendResponse);
-          return true;
-
-        case "clearCapturedTranscript":
-          this.clearCapturedTranscript(sendResponse);
-          return true;
-
-        default:
-          console.log("Unknown message action:", message.action);
-          return false;
+// Utility: Safe message sending with proper error handling
+const safeSendMessage = async (message) => {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage(message, (response) => {
+      if (chrome.runtime.lastError) {
+        console.log("Message send failed:", chrome.runtime.lastError.message);
+        resolve({ success: false, error: chrome.runtime.lastError.message });
+      } else {
+        resolve(response || { success: true });
       }
     });
+  });
+};
 
-    // Handle notification clicks
-    chrome.notifications.onClicked.addListener((notificationId) => {
-      if (notificationId === "transcript-captured") {
-        // Clear the notification
-        chrome.notifications.clear(notificationId);
+// Storage initialization guard (prevent duplicate calls from lifecycle events)
+let storageInitialized = false;
 
-        // Open the extension popup by opening action (this will show the popup)
-        chrome.action.openPopup().catch(() => {
-          // Fallback: open transcript viewer in new tab
-          console.log(
-            "Opening popup failed, opening transcript viewer in new tab"
-          );
-          chrome.tabs.create({
-            url: chrome.runtime.getURL("popup.html?notification=true"),
-            active: true,
-          });
-        });
-      }
+const ensureStorage = async () => {
+  if (storageInitialized) return;
+  await initializeStorage();
+  storageInitialized = true;
+};
+
+// Initialize session storage
+const initializeStorage = async () => {
+  try {
+    const sessions = await chrome.storage.session.get([
+      STORAGE_KEYS.CAPTURED_TRANSCRIPTS,
+    ]);
+
+    // Initialize empty structures if they don't exist
+    const updates = {};
+    if (!sessions[STORAGE_KEYS.CAPTURED_TRANSCRIPTS]) {
+      updates[STORAGE_KEYS.CAPTURED_TRANSCRIPTS] = {};
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await chrome.storage.session.set(updates);
+    }
+
+    // Clean up old persistent storage
+    chrome.storage.local.remove(["capturedTranscript"], () => {
+      console.log("🧹 Cleaned up old persistent storage");
     });
+
+    console.log("✅ MV3 session storage initialized");
+  } catch (error) {
+    console.error("Error initializing storage:", error);
+  }
+};
+
+// Atomic storage operations (prevent race conditions)
+const updateTranscripts = async (mutator) => {
+  const { [STORAGE_KEYS.CAPTURED_TRANSCRIPTS]: transcripts } =
+    await chrome.storage.session.get([STORAGE_KEYS.CAPTURED_TRANSCRIPTS]);
+
+  const updatedTranscripts = mutator(transcripts || {});
+  await chrome.storage.session.set({
+    [STORAGE_KEYS.CAPTURED_TRANSCRIPTS]: updatedTranscripts,
+  });
+  return updatedTranscripts;
+};
+
+// -----------------------------------------------------------
+// Transcript Management
+
+const handleCapturedTranscript = async (
+  transcriptData,
+  videoId,
+  sendResponse
+) => {
+  console.log("📡 Background received captured transcript for video:", videoId);
+
+  if (!videoId) {
+    console.error("❌ No video ID provided for captured transcript");
+    if (sendResponse)
+      sendResponse({ success: false, error: "No video ID provided" });
+    return;
   }
 
-  // Handle captured transcript from content script
-  handleCapturedTranscript(transcriptData, sendResponse) {
-    console.log("📡 Background received captured transcript:", transcriptData);
-
-    // Store the captured transcript
-    this.capturedTranscript = {
+  try {
+    const capturedTranscript = {
       ...transcriptData,
       capturedAt: Date.now(),
       captureMethod: "Auto-capture",
+      videoId: videoId,
     };
 
-    // Store in chrome.storage for persistence across service worker restarts
-    chrome.storage.local.set(
-      {
-        capturedTranscript: this.capturedTranscript,
-      },
-      () => {
-        console.log("✅ Transcript stored in chrome.storage");
-      }
-    );
+    // Store using atomic operation
+    await updateTranscripts((transcripts) => ({
+      ...transcripts,
+      [videoId]: capturedTranscript,
+    }));
 
-    // Set badge to notify user transcript was captured
-    chrome.action.setBadgeText({ text: "1" });
-    chrome.action.setBadgeBackgroundColor({ color: "#4CAF50" });
-    chrome.action.setTitle({ title: "Transcript captured! Click to view" });
+    console.log(`✅ Transcript stored for video ${videoId} (session storage)`);
 
-    // Request permission and create toast notification
+    // Update badge to show total transcript count
+    await updateBadgeForAllVideos();
+
+    // Create notification if permitted
     chrome.notifications.getPermissionLevel((level) => {
-      console.log("📋 Current notification permission level:", level);
-
       if (level === "granted") {
-        // Create notification
-        chrome.notifications.create(
-          "transcript-captured",
-          {
-            type: "basic",
-            iconUrl: "icons/icon128.png",
-            title: "Transcript Captured!",
-            message: "Auto-captured from video captions. Click to view.",
-            priority: 2,
-          },
-          (notificationId) => {
-            if (chrome.runtime.lastError) {
-              console.error(
-                "❌ Notification failed:",
-                chrome.runtime.lastError.message
-              );
-            } else {
-              console.log(
-                "✅ Toast notification created successfully:",
-                notificationId
-              );
-            }
-          }
-        );
-      } else {
-        console.log(
-          "📋 Notification permission not granted, only badge will show"
-        );
-      }
-    });
-
-    if (sendResponse) {
-      sendResponse({ success: true });
-    }
-
-    // Notify any open popups about the captured transcript
-    this.notifyPopupsTranscriptReady();
-  }
-
-  // Get captured transcript
-  getCapturedTranscript(sendResponse) {
-    // First try memory, then fall back to storage
-    if (this.capturedTranscript) {
-      console.log("📋 Returning captured transcript from memory");
-      if (sendResponse) {
-        sendResponse({
-          success: true,
-          transcript: this.capturedTranscript,
+        chrome.notifications.create("transcript-captured", {
+          type: "basic",
+          iconUrl: "icons/icon128.png",
+          title: "Transcript Captured!",
+          message: "Auto-captured from video captions. Click to view.",
+          priority: 2,
         });
       }
-      return;
-    }
-
-    // Check chrome.storage as fallback
-    chrome.storage.local.get(["capturedTranscript"], (result) => {
-      if (result.capturedTranscript) {
-        console.log("📋 Returning captured transcript from storage");
-        this.capturedTranscript = result.capturedTranscript;
-        if (sendResponse) {
-          sendResponse({
-            success: true,
-            transcript: result.capturedTranscript,
-          });
-        }
-      } else {
-        console.log("❌ No captured transcript available");
-        if (sendResponse) {
-          sendResponse({ success: false, error: "No captured transcript" });
-        }
-      }
     });
+
+    if (sendResponse) sendResponse({ success: true });
+  } catch (error) {
+    console.error("Error handling captured transcript:", error);
+    if (sendResponse) sendResponse({ success: false, error: error.message });
+  }
+};
+
+const getCapturedTranscript = async (videoId, sendResponse) => {
+  if (!videoId) {
+    console.log("❌ No video ID provided for transcript retrieval");
+    if (sendResponse)
+      sendResponse({ success: false, error: "No video ID provided" });
+    return;
   }
 
-  // Clear captured transcript
-  clearCapturedTranscript(sendResponse) {
-    this.capturedTranscript = null;
+  try {
+    const { [STORAGE_KEYS.CAPTURED_TRANSCRIPTS]: transcripts } =
+      await chrome.storage.session.get([STORAGE_KEYS.CAPTURED_TRANSCRIPTS]);
 
-    // Clear badge notification
-    chrome.action.setBadgeText({ text: "" });
-    chrome.action.setTitle({ title: "Extract YouTube Transcript" });
+    const transcript = transcripts?.[videoId];
+    if (transcript) {
+      console.log(`📋 Returning captured transcript for video ${videoId}`);
+      if (sendResponse) {
+        sendResponse({ success: true, transcript: transcript });
+      }
+    } else {
+      console.log(`❌ No captured transcript available for video ${videoId}`);
+      if (sendResponse) {
+        sendResponse({
+          success: false,
+          error: "No captured transcript for this video",
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Error retrieving transcript:", error);
+    if (sendResponse) sendResponse({ success: false, error: error.message });
+  }
+};
 
-    // Clear from storage too
-    chrome.storage.local.remove(["capturedTranscript"], () => {
-      console.log("🗑️ Cleared captured transcript from storage");
+const clearCapturedTranscript = async (videoId, sendResponse) => {
+  try {
+    const updatedTranscripts = await updateTranscripts((transcripts) => {
+      if (videoId && transcripts[videoId]) {
+        const updated = { ...transcripts };
+        delete updated[videoId];
+        console.log(`🗑️ Cleared captured transcript for video ${videoId}`);
+        return updated;
+      }
+      return transcripts;
     });
+
+    // Clear badge if no transcripts remain
+    if (Object.keys(updatedTranscripts).length === 0) {
+      await chrome.action.setBadgeText({ text: "" });
+      await chrome.action.setTitle({ title: "Extract YouTube Transcript" });
+    }
+
+    if (sendResponse) sendResponse({ success: true });
+  } catch (error) {
+    console.error("Error clearing transcript:", error);
+    if (sendResponse) sendResponse({ success: false, error: error.message });
+  }
+};
+
+const clearPreviousVideoTranscripts = async (currentVideoId, sendResponse) => {
+  try {
+    await updateTranscripts((transcripts) => {
+      if (currentVideoId && transcripts[currentVideoId]) {
+        console.log(
+          `🗑️ Cleared previous video transcripts, kept ${currentVideoId}`
+        );
+        return { [currentVideoId]: transcripts[currentVideoId] };
+      } else {
+        console.log("🗑️ Cleared all video transcripts");
+        return {};
+      }
+    });
+
+    // Update badge after clearing transcripts
+    await updateBadgeForAllVideos();
+
+    if (sendResponse) sendResponse({ success: true });
+  } catch (error) {
+    console.error("Error clearing previous transcripts:", error);
+    if (sendResponse) sendResponse({ success: false, error: error.message });
+  }
+};
+
+// Set badge to waiting state during auto-capture
+const setBadgeWaiting = async (videoId, sendResponse) => {
+  try {
+    await chrome.action.setBadgeText({ text: "..." });
+    await chrome.action.setBadgeBackgroundColor({ color: "#FFA500" });
+    await chrome.action.setTitle({
+      title: "Auto-capture active - enable CC on video",
+    });
+
+    if (sendResponse) sendResponse({ success: true });
+  } catch (error) {
+    console.error("Error setting badge waiting state:", error);
+    if (sendResponse) sendResponse({ success: false, error: error.message });
+  }
+};
+
+// Update badge to reflect overall transcript availability
+const updateBadgeForAllVideos = async () => {
+  try {
+    const { [STORAGE_KEYS.CAPTURED_TRANSCRIPTS]: transcripts } =
+      await chrome.storage.session.get([STORAGE_KEYS.CAPTURED_TRANSCRIPTS]);
+
+    const transcriptCount = Object.keys(transcripts || {}).length;
+    if (transcriptCount > 0) {
+      await chrome.action.setBadgeText({ text: transcriptCount.toString() });
+      await chrome.action.setBadgeBackgroundColor({ color: "#4CAF50" });
+      await chrome.action.setTitle({
+        title: `${transcriptCount} transcript(s) captured - click to view`,
+      });
+    } else {
+      await chrome.action.setBadgeText({ text: "" });
+      await chrome.action.setTitle({ title: "Extract YouTube Transcript" });
+    }
+  } catch (error) {
+    console.error("Error updating badge for all videos:", error);
+  }
+};
+
+// Get all captured transcripts for transcript list view
+const getAllCapturedTranscripts = async (sendResponse) => {
+  try {
+    const { [STORAGE_KEYS.CAPTURED_TRANSCRIPTS]: transcripts } =
+      await chrome.storage.session.get([STORAGE_KEYS.CAPTURED_TRANSCRIPTS]);
 
     if (sendResponse) {
-      sendResponse({ success: true });
-    }
-  }
-
-  // Notify any open popups that transcript is ready
-  notifyPopupsTranscriptReady() {
-    // This will be received by popup.js if it's open
-    chrome.runtime
-      .sendMessage({
-        action: "transcriptReady",
-        source: "background",
-      })
-      .catch(() => {
-        // Popup might not be open, which is fine
-        console.log("No popup open to notify (this is normal)");
+      sendResponse({
+        success: true,
+        transcripts: transcripts || {},
+        count: Object.keys(transcripts || {}).length,
       });
-  }
-
-  // Initialize from storage on startup
-  async initialize() {
-    try {
-      const result = await chrome.storage.local.get(["capturedTranscript"]);
-
-      if (result.capturedTranscript) {
-        this.capturedTranscript = result.capturedTranscript;
-        console.log("Restored captured transcript from storage");
-      }
-    } catch (error) {
-      console.error("Error initializing background:", error);
     }
+  } catch (error) {
+    console.error("Error getting all transcripts:", error);
+    if (sendResponse) sendResponse({ success: false, error: error.message });
   }
-}
+};
 
-// Initialize the background service worker
-console.log("🚀 Background service worker starting...");
-const backgroundService = new TranscriptExtractorBackground();
-backgroundService.initialize();
+// Clear all captured transcripts
+const clearAllTranscripts = async (sendResponse) => {
+  try {
+    await updateTranscripts(() => ({}));
+    await chrome.action.setBadgeText({ text: "" });
+    await chrome.action.setTitle({ title: "Extract YouTube Transcript" });
 
-// Handle service worker lifecycle
-chrome.runtime.onStartup.addListener(() => {
-  console.log("🔄 Background service worker restarted");
-  backgroundService.initialize();
+    if (sendResponse) sendResponse({ success: true });
+  } catch (error) {
+    console.error("Error clearing all transcripts:", error);
+    if (sendResponse) sendResponse({ success: false, error: error.message });
+  }
+};
+
+// -----------------------------------------------------------
+// MV3-native: Message listener at module level
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log("Background received message:", message.action);
+
+  // Handle messages asynchronously (with one-time initialization guard)
+  (async () => {
+    await ensureStorage();
+
+    switch (message.action) {
+      case ACTIONS.TRANSCRIPT_CAPTURED:
+        await handleCapturedTranscript(
+          message.data,
+          message.videoId,
+          sendResponse
+        );
+        break;
+
+      case ACTIONS.GET_CAPTURED_TRANSCRIPT:
+        await getCapturedTranscript(message.videoId, sendResponse);
+        break;
+
+      case ACTIONS.CLEAR_CAPTURED_TRANSCRIPT:
+        await clearCapturedTranscript(message.videoId, sendResponse);
+        break;
+
+      case ACTIONS.CLEAR_PREVIOUS_VIDEO_TRANSCRIPTS:
+        await clearPreviousVideoTranscripts(
+          message.currentVideoId,
+          sendResponse
+        );
+        break;
+
+      case "setBadgeWaiting":
+        await setBadgeWaiting(message.videoId, sendResponse);
+        break;
+
+      case ACTIONS.GET_ALL_CAPTURED_TRANSCRIPTS:
+        await getAllCapturedTranscripts(sendResponse);
+        break;
+
+      case ACTIONS.CLEAR_ALL_TRANSCRIPTS:
+        await clearAllTranscripts(sendResponse);
+        break;
+
+      default:
+        console.log("Unknown message action:", message.action);
+        if (sendResponse)
+          sendResponse({ success: false, error: "Unknown action" });
+    }
+  })();
+
+  return true; // Will respond asynchronously
 });
 
-chrome.runtime.onInstalled.addListener(() => {
+// Handle notification clicks
+chrome.notifications.onClicked.addListener((notificationId) => {
+  if (notificationId === "transcript-captured") {
+    chrome.notifications.clear(notificationId);
+    chrome.action.openPopup().catch(() => {
+      chrome.tabs.create({
+        url: chrome.runtime.getURL("popup.html?notification=true"),
+        active: true,
+      });
+    });
+  }
+});
+
+// Initialize only on lifecycle events (prevents race condition)
+console.log("🚀 MV3-native background service worker loaded");
+
+// Handle service worker lifecycle
+chrome.runtime.onStartup.addListener(ensureStorage);
+chrome.runtime.onInstalled.addListener((details) => {
   console.log("📦 Extension installed/updated");
+  ensureStorage();
+
+  // Show helpful tip on first install about pinning to toolbar
+  if (details.reason === "install") {
+    chrome.notifications.getPermissionLevel((level) => {
+      if (level === "granted") {
+        chrome.notifications.create("pin-tip", {
+          type: "basic",
+          iconUrl: "icons/icon128.png",
+          title: "YouTube Transcript Extractor Installed!",
+          message:
+            "Tip: Pin this extension to your toolbar for quick access. Click the puzzle piece icon → pin icon.",
+          priority: 1,
+        });
+      }
+    });
+  }
 });

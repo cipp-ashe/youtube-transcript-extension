@@ -12,8 +12,8 @@
       <!-- --------------------------------------------------- -->
       <!-- Header -->
       <header>
-        <h1>📝 YouTube Transcript</h1>
-        <p class="subtitle">Extract transcripts from any YouTube video</p>
+        <h1>YouTube Transcript Extractor</h1>
+        <p class="subtitle">Extract and download video transcripts</p>
       </header>
 
       <!-- --------------------------------------------------- -->
@@ -26,10 +26,11 @@
       <!-- --------------------------------------------------- -->
       <!-- Error State -->
       <section id="error" class="section hidden" aria-live="assertive">
-        <div class="error-icon" aria-hidden="true">⚠️</div>
-        <p id="error-message">Something went wrong</p>
-        <div class="button-group">
-          <button id="retry-btn" class="btn btn-secondary">Try Again</button>
+        <div class="error-content">
+          <p id="error-message">Something went wrong</p>
+          <div class="button-group">
+            <button id="retry-btn" class="btn btn-secondary">Try Again</button>
+          </div>
         </div>
       </section>
 
@@ -52,48 +53,106 @@
         <!-- Action Buttons -->
         <div class="button-group">
           <button id="extract-btn" class="btn btn-primary">
-            📝 Extract Transcript
+            Extract Transcript
           </button>
-          <button id="refresh-btn" class="btn btn-secondary">🔄 Refresh</button>
+          <button id="refresh-btn" class="btn btn-secondary">Refresh</button>
         </div>
 
         <!-- Info Tip -->
         <div class="info-notice" role="note">
           <p>
-            <strong>💡 Tip:</strong> Enable CC on the video player and
-            transcripts will be captured automatically.
+            <strong>Tip:</strong> Enable captions on the video player for
+            automatic capture.
           </p>
         </div>
 
         <!-- Auto-Capture Banner -->
         <div id="transcript-captured-banner" class="captured-banner hidden">
-          <div class="captured-icon" aria-hidden="true">✅</div>
-          <div class="captured-text">
-            <strong>Transcript Captured!</strong>
-            <p>Auto-captured from video captions</p>
+          <div class="captured-content">
+            <div class="captured-text">
+              <strong>Transcript Captured</strong>
+              <p>Auto-captured from video captions</p>
+            </div>
+            <button id="dismiss-captured" class="btn-dismiss" title="Dismiss">
+              ×
+            </button>
           </div>
-          <button id="dismiss-captured" class="btn-dismiss" title="Dismiss">
-            ✕
-          </button>
         </div>
       </section>
 
       <!-- --------------------------------------------------- -->
       <!-- No Transcripts -->
       <section id="no-transcripts" class="section hidden">
-        <div class="info-icon" aria-hidden="true">ℹ️</div>
-        <h3>No Transcripts Available</h3>
-        <p>This video doesn’t have captions or subtitles available.</p>
-        <button id="refresh-no-transcripts" class="btn btn-secondary">
-          Try Again
-        </button>
+        <div class="empty-state">
+          <h3>Manual Transcript Extraction Failed</h3>
+          <p>
+            This video's transcript cannot be extracted through the API. This is
+            common and expected for many videos.
+          </p>
+
+          <!-- Auto-capture guidance -->
+          <div class="auto-capture-guide">
+            <h4>Use Auto-Capture Method Instead:</h4>
+            <div class="steps">
+              <div class="step">
+                <span class="step-number">1</span>
+                <p>
+                  Click on the <strong>CC</strong> (captions) button on the
+                  YouTube video player
+                </p>
+              </div>
+              <div class="step">
+                <span class="step-number">2</span>
+                <p>Choose your preferred language from the captions menu</p>
+              </div>
+              <div class="step">
+                <span class="step-number">3</span>
+                <p>
+                  Let the video play for a few seconds with captions visible
+                </p>
+              </div>
+              <div class="step">
+                <span class="step-number">4</span>
+                <p>
+                  The transcript will be automatically captured and you'll see a
+                  notification
+                </p>
+              </div>
+            </div>
+
+            <!-- Auto-capture status -->
+            <div id="auto-capture-status" class="capture-status hidden">
+              <div class="status-indicator">
+                <div class="pulse-indicator"></div>
+                <span id="capture-status-text">Waiting for captions...</span>
+              </div>
+              <p class="status-help">
+                Make sure captions are enabled and visible on the video player
+              </p>
+            </div>
+          </div>
+
+          <div class="button-group">
+            <button id="enable-auto-capture" class="btn btn-primary">
+              Start Auto-Capture
+            </button>
+          </div>
+
+          <div class="help-notice">
+            <p>
+              <strong>Note:</strong> Auto-capture is more reliable than the API
+              method. It works by detecting captions as they appear on screen
+              and usually succeeds even when the transcript API fails.
+            </p>
+          </div>
+        </div>
       </section>
 
       <!-- --------------------------------------------------- -->
       <!-- Results Section -->
       <section id="results" class="section hidden">
         <div class="results-header">
-          <h3>📄 Transcript Results</h3>
+          <h3>Transcript</h3>
           <div class="transcript-info">
             <span id="language-info" class="info-badge">English</span>
             <span id="type-info" class="info-badge">Auto-generated</span>
@@ -104,12 +163,14 @@
         <!-- Format Toggle -->
         <div class="format-toggle">
           <label class="toggle-switch">
-            <input
-              type="checkbox"
-              id="timestamp-toggle"
-              aria-label="Include timestamps"
-            />
-            <span class="toggle-slider"></span>
+            <div class="toggle-switch-slider">
+              <input
+                type="checkbox"
+                id="timestamp-toggle"
+                aria-label="Include timestamps"
+              />
+              <span class="toggle-slider"></span>
+            </div>
             <span class="toggle-label">Include timestamps</span>
           </label>
         </div>
@@ -126,35 +187,56 @@
 
         <!-- Action Buttons -->
         <div class="button-group">
-          <button id="copy-btn" class="btn btn-primary">📋 Copy</button>
-          <button id="download-btn" class="btn btn-secondary">
-            💾 Download
-          </button>
+          <button id="copy-btn" class="btn btn-primary">Copy</button>
+          <button id="download-btn" class="btn btn-secondary">Download</button>
           <button id="extract-another" class="btn btn-secondary">
-            🔄 Extract Another
+            Extract Another
           </button>
         </div>
 
         <!-- Success Message -->
         <div id="copy-success" class="success-message hidden" role="status">
-          ✅ Copied to clipboard!
+          Copied to clipboard!
+        </div>
+      </section>
+
+      <!-- --------------------------------------------------- -->
+      <!-- Transcript List -->
+      <section id="transcript-list" class="section hidden">
+        <div class="list-header">
+          <h3>Captured Transcripts</h3>
+          <p class="subtitle">
+            Session transcripts (cleared on browser restart)
+          </p>
+        </div>
+
+        <div id="transcript-items" class="transcript-items">
+          <!-- Transcripts will be populated here -->
+        </div>
+
+        <div class="button-group">
+          <button id="refresh-list" class="btn btn-secondary">Refresh</button>
+          <button id="clear-all-transcripts" class="btn btn-secondary">
+            Clear All
+          </button>
         </div>
       </section>
 
       <!-- --------------------------------------------------- -->
       <!-- Not YouTube -->
       <section id="not-youtube" class="section hidden">
-        <div class="info-icon" aria-hidden="true">🎬</div>
-        <h3>Navigate to YouTube</h3>
-        <p>Please open a YouTube video page to extract transcripts.</p>
-        <a
-          href="https://youtube.com"
-          target="_blank"
-          rel="noopener"
-          class="btn btn-primary"
-        >
-          Open YouTube
-        </a>
+        <div class="empty-state">
+          <h3>Navigate to YouTube</h3>
+          <p>Please open a YouTube video page to extract transcripts.</p>
+          <a
+            href="https://youtube.com"
+            target="_blank"
+            rel="noopener"
+            class="btn btn-primary"
+          >
+            Open YouTube
+          </a>
+        </div>
       </section>
     </div>
 
