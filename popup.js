@@ -745,28 +745,47 @@ class YouTubeTranscriptPopup {
     console.log("🎯 Starting auto-capture with clear user feedback");
 
     try {
+      // Show loading state immediately
+      this.showLoading("Setting up auto-capture...");
+
       // Set badge to indicate waiting state
       await this.safeSendMessage({
         action: "setBadgeWaiting",
         videoId: this.currentVideoData.videoId,
       });
 
+      // Give more time for background setup and content script readiness
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
       // Show immediate notification that auto-capture is active
       if (chrome.notifications) {
         chrome.notifications.create("auto-capture-started", {
           type: "basic",
           iconUrl: "icons/icon128.png",
-          title: "Auto-Capture Started",
+          title: "Auto-Capture Ready",
           message:
             "Enable CC on the video player. The transcript will be captured automatically.",
           priority: 1,
         });
       }
 
-      // Close popup after user sees feedback
+      // Show success state briefly before closing
+      const successEl = document.createElement("div");
+      successEl.innerHTML = `
+        <div style="text-align: center; padding: 20px;">
+          <p style="color: var(--success); font-weight: 600;">🎯 Auto-capture is now active!</p>
+          <p style="font-size: 14px; margin-top: 10px;">Enable CC on the video player to capture the transcript.</p>
+        </div>
+      `;
+
+      const loadingSection = document.getElementById("loading");
+      loadingSection.innerHTML = "";
+      loadingSection.appendChild(successEl);
+
+      // Close popup after user sees success message
       setTimeout(() => {
         window.close();
-      }, 500);
+      }, 1500);
     } catch (error) {
       console.error("Error starting auto-capture:", error);
       this.showError("Failed to start auto-capture");
