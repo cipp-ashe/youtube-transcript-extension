@@ -19,7 +19,7 @@ class YouTubeTranscriptPopup {
   // Initialization
   async init() {
     console.log("🚀 Popup initialization starting");
-    console.log("🔍 CSP Debug - document.location:", document.location.href);
+    console.log("� CSP Debug - document.location:", document.location.href);
     console.log("🔍 CSP Debug - checking for inline handlers in DOM");
 
     // Check for any inline event handlers that might cause CSP violations
@@ -38,25 +38,46 @@ class YouTubeTranscriptPopup {
     this.bindEvents();
     this.setupBackgroundMessageListener();
 
-    // Simple linear flow: get video ID → check for captured transcript → determine state
+    // Improved flow: Check for any transcripts first, then current video
     try {
+      // First, check if we have any captured transcripts at all
+      const allTranscriptsResponse = await this.safeSendMessage({
+        action: "getAllCapturedTranscripts",
+      });
+
+      const hasAnyTranscripts =
+        allTranscriptsResponse?.success &&
+        allTranscriptsResponse.transcripts &&
+        Object.keys(allTranscriptsResponse.transcripts).length > 0;
+
       const videoId = await this.getCurrentVideoId();
+
       if (!videoId) {
-        this.showSection("not-youtube");
+        // Not on a video page - show transcript list if available, otherwise show navigation message
+        if (hasAnyTranscripts) {
+          console.log(
+            "📋 Not on video page but have transcripts - showing list"
+          );
+          this.showTranscriptList();
+        } else {
+          this.showSection("not-youtube");
+        }
         return;
       }
 
       console.log(`🎯 Popup opened for video: ${videoId}`);
 
-      // Check for captured transcript first (absolute priority)
-      const hasTranscript = await this.checkForCapturedTranscript(videoId);
-      if (hasTranscript) {
-        console.log("📋 Showing captured transcript");
+      // Check for captured transcript for current video
+      const hasCurrentTranscript = await this.checkForCapturedTranscript(
+        videoId
+      );
+      if (hasCurrentTranscript) {
+        console.log("📋 Showing current video transcript");
         return; // Already displayed
       }
 
-      // No captured transcript - check if manual extraction is possible
-      await this.checkManualExtraction(videoId);
+      // No current transcript - show overview with options
+      await this.showVideoOverview(videoId, hasAnyTranscripts);
     } catch (error) {
       console.error("Error during popup initialization:", error);
       this.showError("Extension initialization failed. Please try again.");
@@ -104,13 +125,14 @@ class YouTubeTranscriptPopup {
       "refresh-btn": () => this.init(),
       "enable-auto-capture": this.enableAutoCapture,
       "extract-btn": () => this.extractTranscript(),
-      "copy-btn": () => this.copyToClipboard(),
-      "download-btn": () => this.downloadTranscript(),
+      // Note: download-btn and copy-btn are handled in bindResultsEvents()
       "extract-another": () => this.showTranscriptList(), // Show list instead of restarting
       "refresh-list": () => this.showTranscriptList(),
       "download-all-btn": () => this.showDownloadAllModal(),
       "confirm-download-all": () => this.executeDownloadAll(),
       "cancel-download-all": () => this.hideDownloadAllModal(),
+      "confirm-single-download": () => this.executeSingleDownload(),
+      "cancel-single-download": () => this.hideSingleDownloadModal(),
       "clear-all-transcripts": () => this.clearAllTranscripts(),
     };
 
@@ -173,11 +195,27 @@ class YouTubeTranscriptPopup {
       "not-youtube",
     ];
 
+    // Hide all main sections
     for (const id of sections) {
       const el = document.getElementById(id);
       if (!el) continue;
       el.classList.toggle("hidden", id !== sectionId);
     }
+
+    // Always hide all modals when switching sections
+    const modals = ["single-download-modal", "download-all-modal"];
+
+    for (const modalId of modals) {
+      const modal = document.getElementById(modalId);
+      if (modal) {
+        modal.classList.add("hidden");
+      }
+    }
+
+    // Clear any pending download state when switching sections
+    this.pendingDownloadTranscript = null;
+    this.pendingDownloadTranscripts = null;
+    this.downloadMode = null;
   }
 
   showLoading(message = "Loading video information...") {
@@ -227,10 +265,10 @@ class YouTubeTranscriptPopup {
     }
   }
 
-  // Check if manual extraction is possible for the video
-  async checkManualExtraction(videoId) {
+  // Show video overview with better UX
+  async showVideoOverview(videoId, hasOtherTranscripts) {
     try {
-      console.log(`🔍 Checking manual extraction for video: ${videoId}`);
+      console.log(`🎯 Showing video overview for: ${videoId}`);
 
       // Try to get video info from content script
       const [tab] = await chrome.tabs.query({
@@ -238,29 +276,86 @@ class YouTubeTranscriptPopup {
         currentWindow: true,
       });
 
+      let videoTitle = "YouTube Video";
+      let hasManualTranscripts = false;
+
       try {
         const videoResponse = await chrome.tabs.sendMessage(tab.id, {
           action: "getVideoInfo",
         });
 
-        if (videoResponse?.success && videoResponse.data?.hasTranscripts) {
-          console.log("✅ Manual extraction possible, showing video info");
-          this.currentVideoData = videoResponse.data;
-          this.displayVideoInfo(videoResponse.data);
-          return;
+        if (videoResponse?.success && videoResponse.data) {
+          videoTitle = videoResponse.data.title || videoTitle;
+          hasManualTranscripts = videoResponse.data.hasTranscripts;
+
+          if (hasManualTranscripts) {
+            console.log("✅ Manual extraction possible, showing video info");
+            this.currentVideoData = videoResponse.data;
+            this.displayVideoInfo(videoResponse.data);
+            return;
+          }
         }
       } catch (error) {
         console.log("Content script not ready or manual extraction failed");
       }
 
-      // Manual extraction failed - show auto-capture guidance
-      console.log("❌ Manual extraction failed, showing auto-capture guidance");
-      this.currentVideoData = { videoId: videoId, title: "YouTube Video" };
-      this.showSection("no-transcripts");
+      // Set current video data
+      this.currentVideoData = { videoId: videoId, title: videoTitle };
+
+      // Show overview with auto-capture option and navigation
+      this.showVideoOverviewUI(hasOtherTranscripts);
     } catch (error) {
-      console.error("Error checking manual extraction:", error);
-      this.showError("Failed to check video information");
+      console.error("Error showing video overview:", error);
+      this.showError("Failed to load video information");
     }
+  }
+
+  // Show improved video overview UI
+  showVideoOverviewUI(hasOtherTranscripts) {
+    // Update the no-transcripts section to be more helpful
+    const noTranscriptsSection = document.getElementById("no-transcripts");
+    if (!noTranscriptsSection) return;
+
+    // Add navigation to transcript list if user has other transcripts
+    const existingNavigation = noTranscriptsSection.querySelector(
+      ".transcript-navigation"
+    );
+    if (hasOtherTranscripts && !existingNavigation) {
+      const navigation = document.createElement("div");
+      navigation.className = "transcript-navigation";
+      navigation.innerHTML = `
+        <div class="info-notice" style="margin-bottom: 20px; background: var(--blue-50); border-left: 4px solid var(--primary);">
+          <p><strong>💡 You have captured transcripts!</strong></p>
+          <p>View your previously captured transcripts while this video loads auto-capture.</p>
+          <button id="view-transcript-list-btn" class="btn btn-primary" style="margin-top: 10px;">
+            View Transcript List
+          </button>
+        </div>
+      `;
+
+      // Insert at the top of the section
+      const emptyState = noTranscriptsSection.querySelector(".empty-state");
+      if (emptyState) {
+        emptyState.insertBefore(navigation, emptyState.firstChild);
+
+        // Bind the button
+        const viewListBtn = navigation.querySelector(
+          "#view-transcript-list-btn"
+        );
+        if (viewListBtn) {
+          viewListBtn.addEventListener("click", () =>
+            this.showTranscriptList()
+          );
+        }
+      }
+    }
+
+    this.showSection("no-transcripts");
+  }
+
+  // Legacy method - kept for compatibility
+  async checkManualExtraction(videoId) {
+    await this.showVideoOverview(videoId, false);
   }
 
   // MV3-compliant utility for safe message sending
@@ -444,9 +539,43 @@ class YouTubeTranscriptPopup {
 
       console.log("✅ Showing results section");
       this.showSection("results");
+
+      // Ensure download button event is bound after section is shown
+      this.bindResultsEvents();
     } catch (error) {
       console.error("❌ Error displaying transcript results:", error);
       this.showError("Failed to display transcript results");
+    }
+  }
+
+  // Bind events specific to results section
+  bindResultsEvents() {
+    const downloadBtn = document.getElementById("download-btn");
+    const copyBtn = document.getElementById("copy-btn");
+    const timestampToggle = document.getElementById("timestamp-toggle");
+
+    if (downloadBtn && !downloadBtn.hasAttribute("data-bound")) {
+      downloadBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        this.showDownloadModal();
+      });
+      downloadBtn.setAttribute("data-bound", "true");
+    }
+
+    if (copyBtn && !copyBtn.hasAttribute("data-bound")) {
+      copyBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        this.copyToClipboard();
+      });
+      copyBtn.setAttribute("data-bound", "true");
+    }
+
+    if (timestampToggle && !timestampToggle.hasAttribute("data-bound")) {
+      timestampToggle.addEventListener("change", () => {
+        this.isTimestampMode = timestampToggle.checked;
+        this.updateTranscriptDisplay();
+      });
+      timestampToggle.setAttribute("data-bound", "true");
     }
   }
 
@@ -497,46 +626,109 @@ class YouTubeTranscriptPopup {
     }
   }
 
-  downloadTranscript() {
-    if (!this.currentTranscript || !this.currentVideoData) return;
+  // Show download modal for individual transcript
+  showDownloadModal() {
+    console.log("🔘 Individual download button clicked");
 
-    const transcriptText = this.isTimestampMode
-      ? this.currentTranscript.timestampedTranscript
-      : this.currentTranscript.transcript;
+    if (!this.currentTranscript || !this.currentVideoData) {
+      this.showError("No transcript available to download");
+      return;
+    }
 
-    const metadata = [
-      "YouTube Transcript",
-      `Video: ${this.currentVideoData.title}`,
-      `Video ID: ${this.currentVideoData.videoId}`,
-      `Language: ${this.currentTranscript.language}`,
-      `Type: ${
-        this.currentTranscript.isAutoGenerated ? "Auto-generated" : "Manual"
-      }`,
-      `Word Count: ${this.currentTranscript.wordCount}`,
-      `Extracted: ${new Date().toLocaleString()}`,
-      "",
-      "--- TRANSCRIPT ---",
-      "",
-    ].join("\n");
+    // Set up pending download data (required for executeSingleDownload)
+    this.pendingDownloadTranscript = {
+      videoId: this.currentVideoData.videoId,
+      title: this.currentVideoData.title,
+      transcript: this.currentTranscript,
+    };
+    this.downloadMode = "single";
 
-    const blob = new Blob([metadata + transcriptText], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
+    // Update modal text
+    document.getElementById(
+      "single-download-text"
+    ).textContent = `Ready to download "${this.currentVideoData.title}"`;
 
-    const safeTitle = (this.currentVideoData.title || "youtube_transcript")
-      .replace(/[^a-z0-9]/gi, "_")
-      .replace(/_+/g, "_") // collapse double underscores
-      .toLowerCase()
-      .substring(0, 50);
+    // Show individual download modal
+    document.getElementById("single-download-modal").classList.remove("hidden");
+  }
 
-    const filename = `youtube_transcript_${safeTitle}_${this.currentVideoData.videoId}.txt`;
+  // Hide individual download modal
+  hideSingleDownloadModal() {
+    document.getElementById("single-download-modal").classList.add("hidden");
+    this.pendingDownloadTranscript = null;
+    this.downloadMode = null;
+  }
 
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+  // Execute single transcript download
+  async executeSingleDownload() {
+    try {
+      if (!this.pendingDownloadTranscript) {
+        this.showError("No transcript prepared for download");
+        return;
+      }
+
+      // Get user selections from SINGLE download modal
+      const format = document.getElementById("single-format-select").value;
+      const includeTimestamps = document.getElementById(
+        "single-include-timestamps"
+      ).checked;
+
+      console.log(
+        `📥 Downloading single transcript as ${format.toUpperCase()}, timestamps: ${includeTimestamps}`
+      );
+
+      // Create single transcript object in the format expected by generators
+      const transcripts = {
+        [this.pendingDownloadTranscript.videoId]:
+          this.pendingDownloadTranscript.transcript,
+      };
+
+      // Generate download content based on format
+      let content;
+      let filename;
+      let mimeType;
+
+      const safeTitle = (
+        this.pendingDownloadTranscript.title || "youtube_transcript"
+      )
+        .replace(/[^a-z0-9]/gi, "_")
+        .replace(/_+/g, "_")
+        .toLowerCase()
+        .substring(0, 50);
+
+      switch (format) {
+        case "json":
+          content = this.generateJSONDownload(transcripts, includeTimestamps);
+          filename = `${safeTitle}_${this.pendingDownloadTranscript.videoId}.json`;
+          mimeType = "application/json";
+          break;
+        case "md":
+          content = this.generateMarkdownDownload(
+            transcripts,
+            includeTimestamps
+          );
+          filename = `${safeTitle}_${this.pendingDownloadTranscript.videoId}.md`;
+          mimeType = "text/markdown";
+          break;
+        case "txt":
+        default:
+          content = this.generateTextDownload(transcripts, includeTimestamps);
+          filename = `${safeTitle}_${this.pendingDownloadTranscript.videoId}.txt`;
+          mimeType = "text/plain";
+          break;
+      }
+
+      // Trigger download
+      this.triggerDownload(content, filename, mimeType);
+
+      // Hide modal and clean up
+      this.hideSingleDownloadModal();
+
+      console.log(`✅ Downloaded single transcript as ${format.toUpperCase()}`);
+    } catch (error) {
+      console.error("Error downloading transcript:", error);
+      this.showError("Failed to download transcript");
+    }
   }
 
   // -----------------------------------------------------------
@@ -698,7 +890,10 @@ class YouTubeTranscriptPopup {
 
       if (response?.success && response.transcript) {
         this.currentTranscript = response.transcript;
-        this.currentVideoData = { videoId: videoId };
+        this.currentVideoData = {
+          videoId: videoId,
+          title: response.transcript.title || `Video ${videoId}`,
+        };
         this.displayTranscriptResults(response.transcript);
       }
     } catch (error) {
@@ -747,18 +942,17 @@ class YouTubeTranscriptPopup {
 
       // Store transcripts for download execution
       this.pendingDownloadTranscripts = transcripts;
+      this.downloadMode = "multiple";
 
       // Update modal content
       document.getElementById(
-        "download-count-text"
+        "download-all-count-text"
       ).textContent = `Ready to download ${transcriptCount} transcript${
         transcriptCount > 1 ? "s" : ""
       }`;
 
       // Show modal
-      document
-        .getElementById("download-options-modal")
-        .classList.remove("hidden");
+      document.getElementById("download-all-modal").classList.remove("hidden");
     } catch (error) {
       console.error("Error preparing download modal:", error);
       this.showError("Failed to prepare download");
@@ -767,8 +961,18 @@ class YouTubeTranscriptPopup {
 
   // Hide download all modal
   hideDownloadAllModal() {
-    document.getElementById("download-options-modal").classList.add("hidden");
+    document.getElementById("download-all-modal").classList.add("hidden");
     this.pendingDownloadTranscripts = null;
+    this.downloadMode = null;
+  }
+
+  // Hide download modal (general method that works for both single and multiple)
+  hideDownloadModal() {
+    document.getElementById("download-all-modal").classList.add("hidden");
+    document.getElementById("single-download-modal").classList.add("hidden");
+    this.pendingDownloadTranscripts = null;
+    this.pendingDownloadTranscript = null;
+    this.downloadMode = null;
   }
 
   // Execute download all with selected options
@@ -779,10 +983,12 @@ class YouTubeTranscriptPopup {
         return;
       }
 
-      // Get user selections from modal
-      const format = document.getElementById("download-format-select").value;
+      // Get user selections from DOWNLOAD ALL modal
+      const format = document.getElementById(
+        "download-all-format-select"
+      ).value;
       const includeTimestamps = document.getElementById(
-        "download-include-timestamps"
+        "download-all-timestamps"
       ).checked;
       const transcriptCount = Object.keys(
         this.pendingDownloadTranscripts
@@ -982,7 +1188,6 @@ class YouTubeTranscriptPopup {
   }
 }
 
-// Make methods available globally for HTML onclick handlers
 window.transcriptPopup = null;
 
 // -----------------------------------------------------------

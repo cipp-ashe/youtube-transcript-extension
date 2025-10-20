@@ -490,6 +490,91 @@ header h1 {
   color: var(--blue-600);
 }
 
+.info-hint {
+  background: var(--gray-50);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin: 0 0 4px 0;
+  border-left: 3px solid var(--gray-400);
+}
+
+.info-hint p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.info-hint strong {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.auto-capture-guide {
+  background: var(--gray-50);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-md);
+  margin: 0;
+}
+
+.auto-capture-guide h4 {
+  margin-top: 0;
+  margin-bottom: var(--spacing-sm);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Cohesive guidance styling */
+.guidance-container {
+  background: var(--gray-50);
+  border: 1px solid var(--border-light);
+
+/* Cohesive guidance styling */
+.guidance-container {
+  max-width: 100%;
+}
+
+.guidance-container .info-hint {
+  margin-bottom: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom: none;
+}
+
+.guidance-container .auto-capture-guide {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-top: 1px solid var(--border-light);
+  margin-top: 0;
+}
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.guidance-container .info-hint {
+  margin-bottom: 0;
+  border: none;
+  border-radius: 0;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--gray-50);
+}
+
+.guidance-container .auto-capture-guide {
+  border: none;
+  border-radius: 0;
+  background: var(--bg-surface);
+  margin: 0;
+}
+
+/* Reduce gap between info-hint and empty-state */
+#no-transcripts .empty-state {
+  margin-top: 0;
+  padding-top: 0;
+}
+
 .captured-banner {
   background: var(--green-50);
   border: 1px solid var(--green-500);

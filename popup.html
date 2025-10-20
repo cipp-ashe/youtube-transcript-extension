@@ -83,16 +83,16 @@
       <!-- --------------------------------------------------- -->
       <!-- No Transcripts -->
       <section id="no-transcripts" class="section hidden">
-        <div class="empty-state">
-          <h3>Manual Transcript Extraction Failed</h3>
-          <p>
-            This video's transcript cannot be extracted through the API. This is
-            common and expected for many videos.
-          </p>
+        <!-- Combined compact guidance -->
+        <div class="guidance-container">
+          <div class="info-hint">
+            <p>
+              <strong>Manual extraction not available</strong> - Use
+              auto-capture instead (common for most videos)
+            </p>
+          </div>
 
-          <!-- Auto-capture guidance -->
           <div class="auto-capture-guide">
-            <h4>Use Auto-Capture Method Instead:</h4>
             <div class="steps">
               <div class="step">
                 <span class="step-number">1</span>
@@ -136,14 +136,6 @@
             <button id="enable-auto-capture" class="btn btn-primary">
               Start Auto-Capture
             </button>
-          </div>
-
-          <div class="help-notice">
-            <p>
-              <strong>Note:</strong> Auto-capture is more reliable than the API
-              method. It works by detecting captions as they appear on screen
-              and usually succeeds even when the transcript API fails.
-            </p>
           </div>
         </div>
       </section>
@@ -215,14 +207,16 @@
         </div>
 
         <!-- Download All Options Modal -->
-        <div id="download-options-modal" class="modal-overlay hidden">
+        <div id="download-all-modal" class="modal-overlay hidden">
           <div class="modal-content">
             <h3>Download All Transcripts</h3>
-            <p id="download-count-text">Preparing to download transcripts...</p>
+            <p id="download-all-count-text">
+              Preparing to download transcripts...
+            </p>
 
             <div class="form-group">
-              <label for="download-format-select">Format:</label>
-              <select id="download-format-select" class="form-control">
+              <label for="download-all-format-select">Format:</label>
+              <select id="download-all-format-select" class="form-control">
                 <option value="txt">Text (.txt)</option>
                 <option value="json">JSON (.json)</option>
                 <option value="md">Markdown (.md)</option>
@@ -231,11 +225,7 @@
 
             <div class="form-group">
               <label class="checkbox-label">
-                <input
-                  type="checkbox"
-                  id="download-include-timestamps"
-                  checked
-                />
+                <input type="checkbox" id="download-all-timestamps" checked />
                 <span class="checkmark"></span>
                 Include timestamps
               </label>
@@ -279,6 +269,43 @@
           </a>
         </div>
       </section>
+
+      <!-- --------------------------------------------------- -->
+      <!-- Global Modals (accessible from any section) -->
+
+      <!-- Individual Download Modal -->
+      <div id="single-download-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+          <h3>Download Transcript</h3>
+          <p id="single-download-text">Ready to download transcript</p>
+
+          <div class="form-group">
+            <label for="single-format-select">Format:</label>
+            <select id="single-format-select" class="form-control">
+              <option value="txt">Text (.txt)</option>
+              <option value="json">JSON (.json)</option>
+              <option value="md">Markdown (.md)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="single-include-timestamps" checked />
+              <span class="checkmark"></span>
+              Include timestamps
+            </label>
+          </div>
+
+          <div class="modal-buttons">
+            <button id="confirm-single-download" class="btn btn-primary">
+              Download
+            </button>
+            <button id="cancel-single-download" class="btn btn-secondary">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script src="popup.js"></script>
