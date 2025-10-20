@@ -354,7 +354,9 @@ class YouTubeTranscriptExtractor {
       }
 
       if (parsedTranscript.length === 0) {
-        throw new Error("No transcript content found");
+        throw new Error(
+          "Transcript not available. Try turning on closed captions (CC) on the video player and use auto-capture instead."
+        );
       }
 
       const formattedTranscript = this.formatTranscript(

@@ -6,38 +6,46 @@
     <title>YouTube Transcript Extractor</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
+
   <body>
     <div class="container">
+      <!-- --------------------------------------------------- -->
+      <!-- Header -->
       <header>
         <h1>📝 YouTube Transcript</h1>
         <p class="subtitle">Extract transcripts from any YouTube video</p>
       </header>
 
+      <!-- --------------------------------------------------- -->
       <!-- Loading State -->
-      <div id="loading" class="section hidden">
+      <section id="loading" class="section hidden" aria-live="polite">
         <div class="spinner"></div>
         <p>Loading video information...</p>
-      </div>
+      </section>
 
+      <!-- --------------------------------------------------- -->
       <!-- Error State -->
-      <div id="error" class="section hidden">
-        <div class="error-icon">⚠️</div>
+      <section id="error" class="section hidden" aria-live="assertive">
+        <div class="error-icon" aria-hidden="true">⚠️</div>
         <p id="error-message">Something went wrong</p>
-        <button id="retry-btn" class="btn btn-secondary">Try Again</button>
-      </div>
+        <div class="button-group">
+          <button id="retry-btn" class="btn btn-secondary">Try Again</button>
+        </div>
+      </section>
 
+      <!-- --------------------------------------------------- -->
       <!-- Video Info Section -->
-      <div id="video-info" class="section hidden">
+      <section id="video-info" class="section hidden">
         <div class="video-details">
           <h3 id="video-title">Video Title</h3>
-          <p class="video-id">ID: <span id="video-id-display"></span></p>
+          <p class="video-id">ID: <span id="video-id-display">—</span></p>
         </div>
 
         <!-- Language Selection -->
         <div id="language-selection" class="hidden">
-          <label for="language-select">Choose Language:</label>
+          <label for="language-select">Choose language:</label>
           <select id="language-select" class="form-control">
-            <option value="">Select a language...</option>
+            <option value="">Select a language…</option>
           </select>
         </div>
 
@@ -49,37 +57,41 @@
           <button id="refresh-btn" class="btn btn-secondary">🔄 Refresh</button>
         </div>
 
-        <!-- Auto-Capture Notice -->
-        <div class="info-notice">
+        <!-- Info Tip -->
+        <div class="info-notice" role="note">
           <p>
             <strong>💡 Tip:</strong> Enable CC on the video player and
-            transcripts will be captured automatically!
+            transcripts will be captured automatically.
           </p>
         </div>
 
-        <!-- Transcript Captured Banner -->
+        <!-- Auto-Capture Banner -->
         <div id="transcript-captured-banner" class="captured-banner hidden">
-          <div class="captured-icon">✅</div>
+          <div class="captured-icon" aria-hidden="true">✅</div>
           <div class="captured-text">
             <strong>Transcript Captured!</strong>
             <p>Auto-captured from video captions</p>
           </div>
-          <button id="dismiss-captured" class="btn-dismiss" title="Dismiss">✕</button>
+          <button id="dismiss-captured" class="btn-dismiss" title="Dismiss">
+            ✕
+          </button>
         </div>
-      </div>
+      </section>
 
-      <!-- No Transcripts Available -->
-      <div id="no-transcripts" class="section hidden">
-        <div class="info-icon">ℹ️</div>
+      <!-- --------------------------------------------------- -->
+      <!-- No Transcripts -->
+      <section id="no-transcripts" class="section hidden">
+        <div class="info-icon" aria-hidden="true">ℹ️</div>
         <h3>No Transcripts Available</h3>
-        <p>This video doesn't have captions or subtitles available.</p>
+        <p>This video doesn’t have captions or subtitles available.</p>
         <button id="refresh-no-transcripts" class="btn btn-secondary">
           Try Again
         </button>
-      </div>
+      </section>
 
+      <!-- --------------------------------------------------- -->
       <!-- Results Section -->
-      <div id="results" class="section hidden">
+      <section id="results" class="section hidden">
         <div class="results-header">
           <h3>📄 Transcript Results</h3>
           <div class="transcript-info">
@@ -91,8 +103,12 @@
 
         <!-- Format Toggle -->
         <div class="format-toggle">
-          <label class="toggle-switch" for="timestamp-toggle">
-            <input type="checkbox" id="timestamp-toggle" />
+          <label class="toggle-switch">
+            <input
+              type="checkbox"
+              id="timestamp-toggle"
+              aria-label="Include timestamps"
+            />
             <span class="toggle-slider"></span>
             <span class="toggle-label">Include timestamps</span>
           </label>
@@ -104,16 +120,15 @@
             id="transcript-text"
             readonly
             placeholder="Transcript will appear here..."
+            aria-label="Transcript text"
           ></textarea>
         </div>
 
         <!-- Action Buttons -->
         <div class="button-group">
-          <button id="copy-btn" class="btn btn-primary">
-            📋 Copy to Clipboard
-          </button>
+          <button id="copy-btn" class="btn btn-primary">📋 Copy</button>
           <button id="download-btn" class="btn btn-secondary">
-            💾 Download TXT
+            💾 Download
           </button>
           <button id="extract-another" class="btn btn-secondary">
             🔄 Extract Another
@@ -121,16 +136,17 @@
         </div>
 
         <!-- Success Message -->
-        <div id="copy-success" class="success-message hidden">
+        <div id="copy-success" class="success-message hidden" role="status">
           ✅ Copied to clipboard!
         </div>
-      </div>
+      </section>
 
-      <!-- Not YouTube Page -->
-      <div id="not-youtube" class="section hidden">
-        <div class="info-icon">🎬</div>
+      <!-- --------------------------------------------------- -->
+      <!-- Not YouTube -->
+      <section id="not-youtube" class="section hidden">
+        <div class="info-icon" aria-hidden="true">🎬</div>
         <h3>Navigate to YouTube</h3>
-        <p>Please go to a YouTube video page and try again.</p>
+        <p>Please open a YouTube video page to extract transcripts.</p>
         <a
           href="https://youtube.com"
           target="_blank"
@@ -139,7 +155,7 @@
         >
           Open YouTube
         </a>
-      </div>
+      </section>
     </div>
 
     <script src="popup.js"></script>

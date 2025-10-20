@@ -1,79 +1,84 @@
-// YouTube Transcript Extractor - Popup Script
+// YouTube Transcript Extractor - Popup Script (2025 Enhanced)
 class YouTubeTranscriptPopup {
   constructor() {
     this.currentVideoData = null;
     this.currentTranscript = null;
     this.isTimestampMode = false;
     this.hasCapturedTranscript = false;
+
+    // Bind handlers
     this.handlePopupUnload = this.handlePopupUnload.bind(this);
     this.dismissCapturedTranscript = this.dismissCapturedTranscript.bind(this);
+
     this.init();
   }
 
+  // -----------------------------------------------------------
+  // Initialization
   init() {
     this.bindEvents();
     this.checkForCapturedTranscript();
     this.checkCurrentPage();
   }
 
-  // Bind all event listeners
+  // -----------------------------------------------------------
+  // Event bindings
   bindEvents() {
-    // Button events
-    document.getElementById("retry-btn").addEventListener("click", () => {
-      this.checkCurrentPage();
-    });
+    const byId = (id) => document.getElementById(id);
 
-    document.getElementById("refresh-btn").addEventListener("click", () => {
-      this.checkCurrentPage();
-    });
+    const clickMap = {
+      "retry-btn": () => this.checkCurrentPage(),
+      "refresh-btn": () => this.checkCurrentPage(),
+      "refresh-no-transcripts": () => this.checkCurrentPage(),
+      "extract-btn": () => this.extractTranscript(),
+      "copy-btn": () => this.copyToClipboard(),
+      "download-btn": () => this.downloadTranscript(),
+      "extract-another": () => this.showVideoInfo(),
+    };
 
-    document
-      .getElementById("refresh-no-transcripts")
-      .addEventListener("click", () => {
-        this.checkCurrentPage();
-      });
-
-    document.getElementById("extract-btn").addEventListener("click", () => {
-      this.extractTranscript();
-    });
-
-    document.getElementById("copy-btn").addEventListener("click", () => {
-      this.copyToClipboard();
-    });
-
-    document.getElementById("download-btn").addEventListener("click", () => {
-      this.downloadTranscript();
-    });
-
-    document.getElementById("extract-another").addEventListener("click", () => {
-      this.showVideoInfo();
-    });
+    for (const [id, handler] of Object.entries(clickMap)) {
+      const el = byId(id);
+      if (el) el.addEventListener("click", handler);
+    }
 
     // Timestamp toggle
-    document
-      .getElementById("timestamp-toggle")
-      .addEventListener("change", (e) => {
-        this.isTimestampMode = e.target.checked;
-        this.updateTranscriptDisplay();
-      });
+    byId("timestamp-toggle")?.addEventListener("change", (e) => {
+      this.isTimestampMode = e.target.checked;
+      this.updateTranscriptDisplay();
+    });
 
-    // Language selection
-    document
-      .getElementById("language-select")
-      .addEventListener("change", (e) => {
-        const extractBtn = document.getElementById("extract-btn");
-        extractBtn.disabled = !e.target.value;
-      });
+    // Language select
+    byId("language-select")?.addEventListener("change", (e) => {
+      const extractBtn = byId("extract-btn");
+      if (extractBtn) {
+        const disabled = !e.target.value;
+        extractBtn.disabled = disabled;
+        extractBtn.setAttribute("aria-disabled", disabled);
+      }
+    });
 
-    const dismissButton = document.getElementById("dismiss-captured");
+    // Dismiss captured banner
+    const dismissButton = byId("dismiss-captured");
     if (dismissButton) {
       dismissButton.addEventListener("click", this.dismissCapturedTranscript);
     }
 
+    // Hide success banner when user clicks elsewhere
+    document.addEventListener("click", (e) => {
+      const msg = document.getElementById("copy-success");
+      if (!msg || msg.classList.contains("hidden")) return;
+
+      // Don’t hide if clicking the Copy button itself
+      if (!e.target.closest("#copy-btn")) {
+        msg.classList.add("hidden");
+      }
+    });
+
     window.addEventListener("unload", this.handlePopupUnload);
   }
 
-  // Show/hide different sections
+  // -----------------------------------------------------------
+  // Section visibility
   showSection(sectionId) {
     const sections = [
       "loading",
@@ -84,142 +89,124 @@ class YouTubeTranscriptPopup {
       "not-youtube",
     ];
 
-    sections.forEach((id) => {
-      const element = document.getElementById(id);
-      if (element) {
-        if (id === sectionId) {
-          element.classList.remove("hidden");
-        } else {
-          element.classList.add("hidden");
-        }
-      }
-    });
-  }
-
-  // Show loading state
-  showLoading(message = "Loading video information...") {
-    this.showSection("loading");
-    const loadingText = document.querySelector("#loading p");
-    if (loadingText) {
-      loadingText.textContent = message;
+    for (const id of sections) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      el.classList.toggle("hidden", id !== sectionId);
     }
   }
 
-  // Show error state
-  showError(message) {
-    this.showSection("error");
-    document.getElementById("error-message").textContent = message;
+  showLoading(message = "Loading video information...") {
+    this.showSection("loading");
+    const p = document.querySelector("#loading p");
+    if (!p) return;
+    p.textContent = message;
   }
 
-  // Check for previously captured transcripts when popup opens
+  showError(message) {
+    this.showSection("error");
+    const msg = document.getElementById("error-message");
+    if (msg) msg.textContent = message || "Something went wrong";
+  }
+
+  // -----------------------------------------------------------
+  // Captured transcript handling
   async checkForCapturedTranscript() {
     try {
       const response = await chrome.runtime.sendMessage({
         action: "getCapturedTranscript",
       });
 
-      if (response && response.success && response.transcript) {
+      if (response?.success && response.transcript) {
         console.log("📋 Found captured transcript on popup open");
-
-        // Store and display the captured transcript
         this.currentTranscript = response.transcript;
         this.hasCapturedTranscript = true;
 
-        // Show the captured banner
         this.showCapturedBanner();
 
-        // We need video data to display properly, so let's get it first
-        const tabs = await chrome.tabs.query({
+        const [tab] = await chrome.tabs.query({
           active: true,
           currentWindow: true,
         });
 
-        if (tabs[0] && tabs[0].url.includes("youtube.com/watch")) {
-          const videoResponse = await chrome.tabs.sendMessage(tabs[0].id, {
+        if (tab?.url?.includes("youtube.com/watch")) {
+          const videoResponse = await chrome.tabs.sendMessage(tab.id, {
             action: "getVideoInfo",
           });
 
-          if (videoResponse && videoResponse.success) {
+          if (videoResponse?.success) {
             this.currentVideoData = videoResponse.data;
             this.displayTranscriptResults(response.transcript);
-            return; // Skip normal page checking
+            return;
           }
         }
       }
-    } catch (error) {
-      // No captured transcript or error - this is normal
+    } catch {
       console.log("No captured transcript found");
     }
   }
 
-  // Show the transcript captured banner
   showCapturedBanner() {
-    const banner = document.getElementById("transcript-captured-banner");
-    const infoNotice = document.querySelector(".info-notice");
-
-    if (banner) {
-      banner.classList.remove("hidden");
-    }
-
-    // Hide the tip notice when transcript is captured
-    if (infoNotice) {
-      infoNotice.classList.add("hidden");
-    }
+    document
+      .getElementById("transcript-captured-banner")
+      ?.classList.remove("hidden");
+    document.querySelector(".info-notice")?.classList.add("hidden");
   }
 
-  // Hide the transcript captured banner
   hideCapturedBanner() {
-    const banner = document.getElementById("transcript-captured-banner");
-    const infoNotice = document.querySelector(".info-notice");
-
-    if (banner) {
-      banner.classList.add("hidden");
-    }
-
-    // Show the tip notice again
-    if (infoNotice) {
-      infoNotice.classList.remove("hidden");
-    }
+    document
+      .getElementById("transcript-captured-banner")
+      ?.classList.add("hidden");
+    document.querySelector(".info-notice")?.classList.remove("hidden");
   }
 
   dismissCapturedTranscript() {
-    if (!this.hasCapturedTranscript) {
-      return;
-    }
-
-    chrome.runtime.sendMessage({ action: "clearCapturedTranscript" });
+    if (!this.hasCapturedTranscript) return;
+    try {
+      chrome.runtime.sendMessage({ action: "clearCapturedTranscript" });
+    } catch (_) {}
     this.hasCapturedTranscript = false;
     this.hideCapturedBanner();
   }
 
   handlePopupUnload() {
-    if (this.hasCapturedTranscript) {
-      this.dismissCapturedTranscript();
+    try {
+      if (this.hasCapturedTranscript) {
+        // More reliable unload signaling
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon(
+            "chrome-extension://" + chrome.runtime.id + "/",
+            JSON.stringify({ action: "clearCapturedTranscript" })
+          );
+        } else {
+          this.dismissCapturedTranscript();
+        }
+      }
+    } catch (_) {
+      /* ignore unload errors */
     }
   }
 
-  // Check if current page is YouTube and get video info
+  // -----------------------------------------------------------
+  // YouTube page + video info
   async checkCurrentPage() {
     try {
       this.showLoading();
-
-      const tabs = await chrome.tabs.query({
+      const [currentTab] = await chrome.tabs.query({
         active: true,
         currentWindow: true,
       });
-      const currentTab = tabs[0];
 
-      if (!currentTab.url.includes("youtube.com/watch")) {
+      if (!currentTab?.url?.includes("youtube.com/watch")) {
         this.showSection("not-youtube");
         return;
       }
 
-      // Send message to content script to get video info
       const response = await chrome.tabs.sendMessage(currentTab.id, {
         action: "getVideoInfo",
       });
 
-      if (response && response.success) {
+      if (response?.success) {
         this.currentVideoData = response.data;
         this.displayVideoInfo(response.data);
       } else {
@@ -228,45 +215,55 @@ class YouTubeTranscriptPopup {
     } catch (error) {
       console.error("Error checking current page:", error);
       this.showError(
-        "Unable to connect to YouTube page. Please refresh the page and try again."
+        "Unable to connect to YouTube. Refresh the video page and try again."
       );
     }
   }
 
-  // Display video information and language options
+  // -----------------------------------------------------------
+  // Video info display
   displayVideoInfo(videoData) {
-    document.getElementById("video-title").textContent = videoData.title;
-    document.getElementById("video-id-display").textContent = videoData.videoId;
+    // ✅ NEW: guard against missing captionTracks
+    if (
+      !Array.isArray(videoData.captionTracks) ||
+      !videoData.captionTracks.length
+    ) {
+      this.showSection("no-transcripts");
+      return;
+    }
+
+    // existing logic continues as-is below
+    document.getElementById("video-title").textContent =
+      videoData.title || "Unknown Title";
+    document.getElementById("video-id-display").textContent =
+      videoData.videoId || "-";
 
     if (!videoData.hasTranscripts) {
       this.showSection("no-transcripts");
       return;
     }
 
-    // Populate language selector
     const languageSelect = document.getElementById("language-select");
     const languageSelection = document.getElementById("language-selection");
 
-    // Clear existing options
-    languageSelect.innerHTML = '<option value="">Select a language...</option>';
+    if (!languageSelect) return;
 
-    // Add available languages
+    languageSelect.innerHTML = '<option value="">Select a language…</option>';
+
     videoData.captionTracks.forEach((track) => {
       const option = document.createElement("option");
       option.value = JSON.stringify(track);
       option.textContent = `${track.name} ${
-        track.isAutoGenerated ? "(Auto-generated)" : "(Manual)"
+        track.isAutoGenerated ? "(Auto)" : "(Manual)"
       }`;
       languageSelect.appendChild(option);
     });
 
-    // Show/hide language selector based on available options
     if (videoData.captionTracks.length > 1) {
       languageSelection.classList.remove("hidden");
       document.getElementById("extract-btn").disabled = true;
     } else {
       languageSelection.classList.add("hidden");
-      // Auto-select the only available language
       languageSelect.value = JSON.stringify(videoData.captionTracks[0]);
       document.getElementById("extract-btn").disabled = false;
     }
@@ -274,36 +271,44 @@ class YouTubeTranscriptPopup {
     this.showVideoInfo();
   }
 
-  // Show video info section
   showVideoInfo() {
     this.showSection("video-info");
   }
 
-  // Extract transcript from selected language
+  // -----------------------------------------------------------
+  // Transcript extraction
   async extractTranscript() {
     try {
       const languageSelect = document.getElementById("language-select");
-      const selectedTrack = JSON.parse(languageSelect.value);
-
-      if (!selectedTrack) {
+      if (!languageSelect?.value) {
         this.showError("Please select a language first");
         return;
       }
 
-      this.showLoading("Extracting transcript...");
+      const selectedTrack = JSON.parse(languageSelect.value);
+      if (!selectedTrack) {
+        this.showError("Invalid language track selected");
+        return;
+      }
 
-      const tabs = await chrome.tabs.query({
+      this.showLoading("Extracting transcript…");
+
+      const [currentTab] = await chrome.tabs.query({
         active: true,
         currentWindow: true,
       });
-      const currentTab = tabs[0];
+
+      if (!currentTab?.id) {
+        this.showError("Unable to access current YouTube tab");
+        return;
+      }
 
       const response = await chrome.tabs.sendMessage(currentTab.id, {
         action: "fetchTranscript",
         captionTrack: selectedTrack,
       });
 
-      if (response && response.success) {
+      if (response?.success) {
         this.currentTranscript = response.data;
         this.displayTranscriptResults(response.data);
       } else {
@@ -315,9 +320,9 @@ class YouTubeTranscriptPopup {
     }
   }
 
-  // Display transcript results
+  // -----------------------------------------------------------
+  // Transcript display
   displayTranscriptResults(transcriptData) {
-    // Update info badges
     document.getElementById("language-info").textContent =
       transcriptData.language;
     document.getElementById("type-info").textContent =
@@ -326,71 +331,60 @@ class YouTubeTranscriptPopup {
       "word-count"
     ).textContent = `${transcriptData.wordCount} words`;
 
-    // Set transcript text
     this.updateTranscriptDisplay();
-
-    // Reset timestamp toggle
     document.getElementById("timestamp-toggle").checked = false;
     this.isTimestampMode = false;
 
     this.showSection("results");
   }
 
-  // Update transcript display based on timestamp toggle
   updateTranscriptDisplay() {
     if (!this.currentTranscript) return;
 
-    const transcriptTextarea = document.getElementById("transcript-text");
+    const textarea = document.getElementById("transcript-text");
     const text = this.isTimestampMode
       ? this.currentTranscript.timestampedTranscript
       : this.currentTranscript.transcript;
 
-    transcriptTextarea.value = text;
-
-    // Auto-resize textarea
-    transcriptTextarea.style.height = "auto";
-    transcriptTextarea.style.height = transcriptTextarea.scrollHeight + "px";
+    textarea.value = text || "";
+    textarea.style.height = "auto";
+    textarea.style.height = textarea.scrollHeight + "px";
   }
 
-  // Copy transcript to clipboard
+  // -----------------------------------------------------------
+  // Clipboard + file ops
   async copyToClipboard() {
     try {
       const transcriptText = document.getElementById("transcript-text").value;
       await navigator.clipboard.writeText(transcriptText);
 
-      // Show success message
-      const successMsg = document.getElementById("copy-success");
-      successMsg.classList.remove("hidden");
-      setTimeout(() => {
-        successMsg.classList.add("hidden");
-      }, 2000);
+      const msg = document.getElementById("copy-success");
+      msg.classList.remove("hidden");
+      msg.setAttribute("aria-live", "polite");
+
+      setTimeout(() => msg.classList.add("hidden"), 2000);
     } catch (error) {
-      console.error("Failed to copy to clipboard:", error);
-      // Fallback for older browsers
+      console.error("Clipboard API failed:", error);
       this.fallbackCopyToClipboard();
     }
   }
 
-  // Fallback copy method for older browsers
   fallbackCopyToClipboard() {
-    const transcriptTextarea = document.getElementById("transcript-text");
-    transcriptTextarea.select();
-    transcriptTextarea.setSelectionRange(0, 99999); // For mobile devices
+    const textarea = document.getElementById("transcript-text");
+    textarea.select();
+    textarea.setSelectionRange(0, 99999);
 
     try {
       document.execCommand("copy");
-      const successMsg = document.getElementById("copy-success");
-      successMsg.classList.remove("hidden");
-      setTimeout(() => {
-        successMsg.classList.add("hidden");
-      }, 2000);
+      const msg = document.getElementById("copy-success");
+      msg.classList.remove("hidden");
+      setTimeout(() => msg.classList.add("hidden"), 2000);
     } catch (error) {
       console.error("Fallback copy failed:", error);
       alert("Copy failed. Please select the text and copy manually.");
     }
   }
 
-  // Download transcript as text file
   downloadTranscript() {
     if (!this.currentTranscript || !this.currentVideoData) return;
 
@@ -398,9 +392,8 @@ class YouTubeTranscriptPopup {
       ? this.currentTranscript.timestampedTranscript
       : this.currentTranscript.transcript;
 
-    // Create file content with metadata
     const metadata = [
-      `YouTube Transcript`,
+      "YouTube Transcript",
       `Video: ${this.currentVideoData.title}`,
       `Video ID: ${this.currentVideoData.videoId}`,
       `Language: ${this.currentTranscript.language}`,
@@ -414,15 +407,12 @@ class YouTubeTranscriptPopup {
       "",
     ].join("\n");
 
-    const fullContent = metadata + transcriptText;
-
-    // Create and download file
-    const blob = new Blob([fullContent], { type: "text/plain" });
+    const blob = new Blob([metadata + transcriptText], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
 
-    // Create safe filename
-    const safeTitle = this.currentVideoData.title
+    const safeTitle = (this.currentVideoData.title || "youtube_transcript")
       .replace(/[^a-z0-9]/gi, "_")
+      .replace(/_+/g, "_") // collapse double underscores
       .toLowerCase()
       .substring(0, 50);
 
@@ -433,12 +423,13 @@ class YouTubeTranscriptPopup {
     a.download = filename;
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
+    a.remove();
     URL.revokeObjectURL(url);
   }
 }
 
-// Initialize popup when DOM is loaded
+// -----------------------------------------------------------
+// Initialize popup
 document.addEventListener("DOMContentLoaded", () => {
   new YouTubeTranscriptPopup();
 });
