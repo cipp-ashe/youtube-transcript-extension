@@ -1,86 +1,74 @@
 # YouTube Transcript Extractor
 
-Get text from any YouTube video, including unlisted and auto-generated captions. Works automatically in the background or on-demand with one click.
+Grabs text from YouTube videos (including unlisted ones and auto-generated captions). Works automatically or on-demand.
 
 ## Quick Start
 
-Install this extension in 6 simple steps:
+Install in 6 steps:
 
-1. **Get the code**: Click the green "Code" button on this GitHub page
-2. **Download**: Select "Download ZIP" from the dropdown
-3. **Extract**: Unzip the downloaded file to a folder on your computer
-4. **Open Chrome extensions**: Go to `chrome://extensions/` in your browser
-5. **Enable developer mode**: Click the toggle for "Developer mode" (top right)
-6. **Load extension**: Click "Load unpacked" and select the extracted folder
+1. **Get the code**: Click green "Code" button → "Download ZIP"
+2. **Extract**: Unzip to a folder somewhere on your computer
+3. **Open Chrome extensions**: Go to `chrome://extensions/`
+4. **Enable developer mode**: Toggle "Developer mode" (top right)
+5. **Load extension**: Click "Load unpacked" → select your extracted folder
+6. Done. Works immediately on YouTube.
 
-That's it. The extension starts working immediately on YouTube.
-
-> **Note**: You need the extracted folder (not the ZIP file) when clicking "Load unpacked"
+> **Note**: Use the extracted folder, not the ZIP file (obviously)
 
 ## How It Works
 
 ### Technical Method
 
-This extension uses **JavaScript interception** to capture YouTube's internal caption requests:
+This extension intercepts YouTube's internal caption requests with JavaScript:
 
-1. **XMLHttpRequest & Fetch Override**: The extension injects code that monitors all network requests YouTube makes
-2. **API Pattern Detection**: When YouTube requests `/api/timedtext` (their caption API), the extension captures the response
-3. **Data Extraction**: Pulls transcript text from YouTube's JSON3 or XML formats
-4. **Browser Storage**: Stores the cleaned transcript data locally using Chrome's storage API
+**The mechanics**: Overrides `XMLHttpRequest` and `fetch` to monitor YouTube's network calls. When YouTube hits `/api/timedtext` (their caption API), the extension grabs a copy of the response and processes it locally.
 
-### What Happens Step by Step
+**What actually happens:**
 
-1. **Page Load**: Extension injects monitoring code into YouTube pages
-2. **Caption Request Detection**: YouTube requests captions → Extension copies the request
-3. **Response Capture**: YouTube receives caption data → Extension processes the same data
-4. **Format Parsing**: Extension converts YouTube's format to plain text
-5. **Local Storage**: Saves processed transcript in your browser
-6. **User Access**: Extension popup displays the formatted text
+1. Extension injects monitoring code into YouTube pages
+2. YouTube requests captions → extension copies the request
+3. YouTube gets caption data → extension processes the same data
+4. Extension converts YouTube's format to clean text
+5. Stores result in your browser (Chrome's local storage)
+6. You access it through the popup
 
-### No External Servers
-
-The extension never sends data anywhere. It only:
-- Reads YouTube's existing API calls (same data YouTube already loads)
-- Processes that data locally in your browser
-- Stores results in Chrome's local storage system
-
-This is like having a "copy machine" that duplicates YouTube's caption requests for your own use.
+**No external servers involved**. Just local JavaScript doing its thing based on what YouTube already loads in your browser.
 
 ## What It Does
 
 ### Automatic Capture
 
-- Grabs transcripts when you enable captions (CC button) on YouTube
-- Shows a notification when transcript is ready
-- Adds a number badge to the extension icon
+- Grabs transcripts when you turn on captions (CC button)
+- Shows browser notification when ready
+- Badge appears on extension icon
 
 ### Manual Extract
 
-- Click the extension icon on any YouTube page
-- Choose your language if multiple options exist
-- Get clean text in seconds
+- Click extension icon on any YouTube page
+- Pick language if multiple options available
+- Get clean text
 
 ### Export Options
 
-- Copy text to clipboard
-- Download as text file with video details
-- Choose plain text or timestamped format
+- Copy to clipboard
+- Download as text file (includes video metadata)
+- Plain text or timestamped format
 
 ## How to Use
 
 ### Method 1: Auto-Capture (Easiest)
 
 1. Go to any YouTube video
-2. Click the CC (captions) button on the video player
-3. Watch for the browser notification
-4. Click the extension icon to view the transcript
+2. Turn on captions (CC button)
+3. Wait for notification
+4. Click extension icon to see transcript
 
 ### Method 2: Manual Extract
 
-1. Go to any YouTube video
-2. Click the extension icon
-3. Select language if prompted
-4. Copy or download the transcript
+1. Go to YouTube video
+2. Click extension icon
+3. Pick language if needed
+4. Copy or download
 
 ## What You Get
 
