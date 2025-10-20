@@ -39,6 +39,9 @@ class YouTubeTranscriptExtractor {
   setupTranscriptListener() {
     document.addEventListener("youtubeTranscriptCaptured", (event) => {
       console.log("📡 Received transcript capture event:", event.detail);
+      console.log("📡 Event fired on URL:", window.location.href);
+      console.log("📡 Event fired on pathname:", window.location.pathname);
+      console.log("📡 Current video ID check:", this.getVideoId());
       this.handleCapturedTranscript(event.detail);
     });
   }
@@ -49,6 +52,8 @@ class YouTubeTranscriptExtractor {
       const { url, response } = captureData;
 
       console.log("🔍 Processing captured transcript:", url);
+      console.log("🔍 Current page URL:", window.location.href);
+      console.log("🔍 Current page pathname:", window.location.pathname);
 
       if (!response || response.trim() === "") {
         console.log("❌ Empty response received");
@@ -164,12 +169,27 @@ class YouTubeTranscriptExtractor {
 
   // Extract video ID from current YouTube URL
   getVideoId() {
+    // Add diagnostic logging
+    console.log("🔍 getVideoId() called - URL:", window.location.href);
+    console.log("🔍 pathname:", window.location.pathname);
+    console.log("🔍 search params:", window.location.search);
+
     const urlParams = new URLSearchParams(window.location.search);
     const videoId = urlParams.get("v");
 
+    console.log("🔍 extracted videoId:", videoId);
+
     if (!videoId && window.location.pathname.startsWith("/watch")) {
       // Fallback for edge cases
+      console.log("🔍 No videoId but on /watch path - returning null");
       return null;
+    }
+
+    // Check if we're on a non-video page
+    if (!videoId) {
+      console.log(
+        "🔍 No videoId found - likely on non-video page (homepage, search, etc.)"
+      );
     }
 
     return videoId;
