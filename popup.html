@@ -214,8 +214,49 @@
           <!-- Transcripts will be populated here -->
         </div>
 
+        <!-- Download All Options Modal -->
+        <div id="download-options-modal" class="modal-overlay hidden">
+          <div class="modal-content">
+            <h3>Download All Transcripts</h3>
+            <p id="download-count-text">Preparing to download transcripts...</p>
+
+            <div class="form-group">
+              <label for="download-format-select">Format:</label>
+              <select id="download-format-select" class="form-control">
+                <option value="txt">Text (.txt)</option>
+                <option value="json">JSON (.json)</option>
+                <option value="md">Markdown (.md)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input
+                  type="checkbox"
+                  id="download-include-timestamps"
+                  checked
+                />
+                <span class="checkmark"></span>
+                Include timestamps
+              </label>
+            </div>
+
+            <div class="modal-buttons">
+              <button id="confirm-download-all" class="btn btn-primary">
+                Download
+              </button>
+              <button id="cancel-download-all" class="btn btn-secondary">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div class="button-group">
           <button id="refresh-list" class="btn btn-secondary">Refresh</button>
+          <button id="download-all-btn" class="btn btn-primary">
+            Download All
+          </button>
           <button id="clear-all-transcripts" class="btn btn-secondary">
             Clear All
           </button>

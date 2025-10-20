@@ -108,6 +108,10 @@ class YouTubeTranscriptExtractor {
         // Video ID already validated above, safe to use
         console.log("✅ Processing transcript for video:", currentVideoId);
 
+        // Get video title for storage
+        const videoTitle = this.getVideoTitle();
+        console.log("📝 Video title extracted:", videoTitle);
+
         // Send to background service worker with improved error handling
         const sendTranscriptToBackground = async () => {
           try {
@@ -126,6 +130,7 @@ class YouTubeTranscriptExtractor {
               action: "transcriptCaptured",
               videoId: currentVideoId,
               data: {
+                title: videoTitle,
                 transcript: formattedTranscript,
                 timestampedTranscript: timestampedTranscript,
                 segments: parsedTranscript,

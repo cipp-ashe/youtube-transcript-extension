@@ -108,6 +108,9 @@ class YouTubeTranscriptPopup {
       "download-btn": () => this.downloadTranscript(),
       "extract-another": () => this.showTranscriptList(), // Show list instead of restarting
       "refresh-list": () => this.showTranscriptList(),
+      "download-all-btn": () => this.showDownloadAllModal(),
+      "confirm-download-all": () => this.executeDownloadAll(),
+      "cancel-download-all": () => this.hideDownloadAllModal(),
       "clear-all-transcripts": () => this.clearAllTranscripts(),
     };
 
@@ -717,6 +720,265 @@ class YouTubeTranscriptPopup {
     } catch (error) {
       console.error("Error clearing transcript:", error);
     }
+  }
+
+  // Show download all modal
+  async showDownloadAllModal() {
+    try {
+      console.log("📥 Preparing download all modal");
+
+      // Get all transcripts
+      const response = await this.safeSendMessage({
+        action: "getAllCapturedTranscripts",
+      });
+
+      if (!response?.success || !response.transcripts) {
+        this.showError("No transcripts available to download");
+        return;
+      }
+
+      const transcripts = response.transcripts;
+      const transcriptCount = Object.keys(transcripts).length;
+
+      if (transcriptCount === 0) {
+        this.showError("No transcripts available to download");
+        return;
+      }
+
+      // Store transcripts for download execution
+      this.pendingDownloadTranscripts = transcripts;
+
+      // Update modal content
+      document.getElementById(
+        "download-count-text"
+      ).textContent = `Ready to download ${transcriptCount} transcript${
+        transcriptCount > 1 ? "s" : ""
+      }`;
+
+      // Show modal
+      document
+        .getElementById("download-options-modal")
+        .classList.remove("hidden");
+    } catch (error) {
+      console.error("Error preparing download modal:", error);
+      this.showError("Failed to prepare download");
+    }
+  }
+
+  // Hide download all modal
+  hideDownloadAllModal() {
+    document.getElementById("download-options-modal").classList.add("hidden");
+    this.pendingDownloadTranscripts = null;
+  }
+
+  // Execute download all with selected options
+  async executeDownloadAll() {
+    try {
+      if (!this.pendingDownloadTranscripts) {
+        this.showError("No transcripts prepared for download");
+        return;
+      }
+
+      // Get user selections from modal
+      const format = document.getElementById("download-format-select").value;
+      const includeTimestamps = document.getElementById(
+        "download-include-timestamps"
+      ).checked;
+      const transcriptCount = Object.keys(
+        this.pendingDownloadTranscripts
+      ).length;
+
+      console.log(
+        `📥 Downloading ${transcriptCount} transcripts as ${format.toUpperCase()}, timestamps: ${includeTimestamps}`
+      );
+
+      // Generate download content based on format
+      let content;
+      let filename;
+      let mimeType;
+
+      switch (format) {
+        case "json":
+          content = this.generateJSONDownload(
+            this.pendingDownloadTranscripts,
+            includeTimestamps
+          );
+          filename = `youtube-transcripts-${
+            new Date().toISOString().split("T")[0]
+          }.json`;
+          mimeType = "application/json";
+          break;
+        case "md":
+          content = this.generateMarkdownDownload(
+            this.pendingDownloadTranscripts,
+            includeTimestamps
+          );
+          filename = `youtube-transcripts-${
+            new Date().toISOString().split("T")[0]
+          }.md`;
+          mimeType = "text/markdown";
+          break;
+        case "txt":
+        default:
+          content = this.generateTextDownload(
+            this.pendingDownloadTranscripts,
+            includeTimestamps
+          );
+          filename = `youtube-transcripts-${
+            new Date().toISOString().split("T")[0]
+          }.txt`;
+          mimeType = "text/plain";
+          break;
+      }
+
+      // Trigger download
+      this.triggerDownload(content, filename, mimeType);
+
+      // Hide modal and clean up
+      this.hideDownloadAllModal();
+
+      console.log(
+        `✅ Downloaded ${transcriptCount} transcripts as ${format.toUpperCase()}`
+      );
+    } catch (error) {
+      console.error("Error downloading all transcripts:", error);
+      this.showError("Failed to download transcripts");
+    }
+  }
+
+  // Generate text format download
+  generateTextDownload(transcripts, includeTimestamps) {
+    let content = `YouTube Transcripts Export\nGenerated: ${new Date().toLocaleString()}\n\n`;
+    content += `Total Videos: ${Object.keys(transcripts).length}\n`;
+    content += "=".repeat(50) + "\n\n";
+
+    Object.entries(transcripts).forEach(([videoId, transcript]) => {
+      content += `Title: ${transcript.title || `Video ${videoId}`}\n`;
+      content += `Video ID: ${videoId}\n`;
+      content += `Language: ${transcript.language}\n`;
+      content += `Word Count: ${transcript.wordCount}\n`;
+      content += `Auto-generated: ${
+        transcript.isAutoGenerated ? "Yes" : "No"
+      }\n`;
+      content += "-".repeat(30) + "\n";
+
+      const text = includeTimestamps
+        ? transcript.timestampedTranscript
+        : transcript.transcript;
+
+      content += text + "\n\n";
+      content += "=".repeat(50) + "\n\n";
+    });
+
+    return content;
+  }
+
+  // Generate JSON format download with improved structure
+  generateJSONDownload(transcripts, includeTimestamps) {
+    const exportData = {
+      metadata: {
+        exportDate: new Date().toISOString(),
+        totalVideos: Object.keys(transcripts).length,
+        includeTimestamps: includeTimestamps,
+        format: "YouTube Transcript Export v2.0",
+      },
+      videos: {},
+    };
+
+    Object.entries(transcripts).forEach(([videoId, transcript]) => {
+      const videoData = {
+        title: transcript.title || `Video ${videoId}`,
+        videoId: videoId,
+        metadata: {
+          language: transcript.language,
+          wordCount: transcript.wordCount,
+          isAutoGenerated: transcript.isAutoGenerated,
+          captureMethod: transcript.captureMethod || "Auto-capture",
+        },
+        content:
+          includeTimestamps && transcript.segments
+            ? {
+                // Structured timeline format for timestamps
+                timeline: transcript.segments.map((segment) => ({
+                  timestamp: segment.start,
+                  duration: segment.duration,
+                  text: segment.text,
+                  formatted: `${Math.floor(segment.start / 60)}:${Math.floor(
+                    segment.start % 60
+                  )
+                    .toString()
+                    .padStart(2, "0")}`,
+                })),
+                fullText: transcript.transcript,
+              }
+            : {
+                // Simple text format without timestamps
+                fullText: transcript.transcript,
+              },
+      };
+
+      exportData.videos[videoId] = videoData;
+    });
+
+    return JSON.stringify(exportData, null, 2);
+  }
+
+  // Generate Markdown format download
+  generateMarkdownDownload(transcripts, includeTimestamps) {
+    let markdown = `# YouTube Transcripts Export\n\n`;
+    markdown += `**Generated:** ${new Date().toLocaleString()}  \n`;
+    markdown += `**Total Videos:** ${Object.keys(transcripts).length}  \n`;
+    markdown += `**Include Timestamps:** ${
+      includeTimestamps ? "Yes" : "No"
+    }\n\n`;
+    markdown += `---\n\n`;
+
+    Object.entries(transcripts).forEach(([videoId, transcript]) => {
+      const title = transcript.title || `Video ${videoId}`;
+
+      markdown += `## ${title}\n\n`;
+      markdown += `**Video ID:** \`${videoId}\`  \n`;
+      markdown += `**Language:** ${transcript.language}  \n`;
+      markdown += `**Word Count:** ${transcript.wordCount}  \n`;
+      markdown += `**Auto-generated:** ${
+        transcript.isAutoGenerated ? "Yes" : "No"
+      }  \n`;
+      markdown += `**YouTube URL:** https://www.youtube.com/watch?v=${videoId}\n\n`;
+
+      if (includeTimestamps && transcript.segments) {
+        markdown += `### Transcript with Timestamps\n\n`;
+        transcript.segments.forEach((segment) => {
+          const minutes = Math.floor(segment.start / 60);
+          const seconds = Math.floor(segment.start % 60);
+          const timestamp = `${minutes}:${seconds.toString().padStart(2, "0")}`;
+          markdown += `**[${timestamp}]** ${segment.text}\n\n`;
+        });
+      } else {
+        markdown += `### Transcript\n\n`;
+        markdown += `${transcript.transcript}\n\n`;
+      }
+
+      markdown += `---\n\n`;
+    });
+
+    return markdown;
+  }
+
+  // Trigger file download
+  triggerDownload(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.style.display = "none";
+
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    URL.revokeObjectURL(url);
   }
 }
 
