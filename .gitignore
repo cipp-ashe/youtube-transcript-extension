@@ -1,0 +1,53 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+
+# Temporary files
+*.tmp
+*.temp
+
+# Chrome extension development
+*.crx
+*.pem
+key.pem
+
+# Backup files
+*.bak
+*.backup
+
+# Archive files (if accidentally committed)
+*.zip
+*.tar.gz
+*.rar
+
+# Node modules (if any build tools are added later)
+node_modules/
+
+# Build outputs (if any build process is added)
+dist/
+build/
+AGENTS.md
