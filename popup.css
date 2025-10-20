@@ -480,11 +480,16 @@ input:checked + .toggle-slider:before {
   padding: 12px;
   margin: 15px 0;
   animation: slideIn 0.3s ease;
+  position: relative;
 }
 
 .captured-icon {
   font-size: 20px;
   flex-shrink: 0;
+}
+
+.captured-text {
+  flex: 1;
 }
 
 .captured-text strong {
@@ -498,6 +503,31 @@ input:checked + .toggle-slider:before {
   color: #16a34a;
   font-size: 12px;
   margin: 0;
+}
+
+.btn-dismiss {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: all 0.2s ease;
+}
+
+.btn-dismiss:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+  color: #374151;
+}
+
+.btn-dismiss:focus {
+  outline: 2px solid #10b981;
+  outline-offset: 2px;
 }
 
 /* High contrast mode support */

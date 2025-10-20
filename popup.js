@@ -4,6 +4,9 @@ class YouTubeTranscriptPopup {
     this.currentVideoData = null;
     this.currentTranscript = null;
     this.isTimestampMode = false;
+    this.hasCapturedTranscript = false;
+    this.handlePopupUnload = this.handlePopupUnload.bind(this);
+    this.dismissCapturedTranscript = this.dismissCapturedTranscript.bind(this);
     this.init();
   }
 
@@ -61,6 +64,13 @@ class YouTubeTranscriptPopup {
         const extractBtn = document.getElementById("extract-btn");
         extractBtn.disabled = !e.target.value;
       });
+
+    const dismissButton = document.getElementById("dismiss-captured");
+    if (dismissButton) {
+      dismissButton.addEventListener("click", this.dismissCapturedTranscript);
+    }
+
+    window.addEventListener("unload", this.handlePopupUnload);
   }
 
   // Show/hide different sections
@@ -113,6 +123,7 @@ class YouTubeTranscriptPopup {
 
         // Store and display the captured transcript
         this.currentTranscript = response.transcript;
+        this.hasCapturedTranscript = true;
 
         // Show the captured banner
         this.showCapturedBanner();
@@ -131,9 +142,6 @@ class YouTubeTranscriptPopup {
           if (videoResponse && videoResponse.success) {
             this.currentVideoData = videoResponse.data;
             this.displayTranscriptResults(response.transcript);
-
-            // Clear the captured transcript from storage
-            chrome.runtime.sendMessage({ action: "clearCapturedTranscript" });
             return; // Skip normal page checking
           }
         }
@@ -171,6 +179,22 @@ class YouTubeTranscriptPopup {
     // Show the tip notice again
     if (infoNotice) {
       infoNotice.classList.remove("hidden");
+    }
+  }
+
+  dismissCapturedTranscript() {
+    if (!this.hasCapturedTranscript) {
+      return;
+    }
+
+    chrome.runtime.sendMessage({ action: "clearCapturedTranscript" });
+    this.hasCapturedTranscript = false;
+    this.hideCapturedBanner();
+  }
+
+  handlePopupUnload() {
+    if (this.hasCapturedTranscript) {
+      this.dismissCapturedTranscript();
     }
   }
 
