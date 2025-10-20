@@ -1,135 +1,204 @@
 # YouTube Transcript Extractor
 
-A Chrome extension that captures and extracts transcripts from YouTube videos, including auto-generated captions and unlisted videos.
+Get text from any YouTube video, including unlisted and auto-generated captions. Works automatically in the background or on-demand with one click.
 
-## Features
+## Quick Start
 
-### Auto-Capture Functionality
+Install this extension in 6 simple steps:
 
-- **XHR/Fetch Interception**: Monitors YouTube's `/api/timedtext` API calls in real-time
-- **Automatic Detection**: Captures transcripts when CC (closed captions) is enabled on videos
-- **Background Notifications**: Shows browser notifications when transcripts are auto-captured
-- **Badge Indicator**: Extension icon shows badge count when transcripts are available
+1. **Get the code**: Click the green "Code" button on this GitHub page
+2. **Download**: Select "Download ZIP" from the dropdown
+3. **Extract**: Unzip the downloaded file to a folder on your computer
+4. **Open Chrome extensions**: Go to `chrome://extensions/` in your browser
+5. **Enable developer mode**: Click the toggle for "Developer mode" (top right)
+6. **Load extension**: Click "Load unpacked" and select the extracted folder
 
-### Manual Extraction
+That's it. The extension starts working immediately on YouTube.
 
-- **Video Information**: Extracts video ID, title, and available caption tracks from YouTube DOM
-- **Language Selection**: Choose from available caption tracks (manual vs auto-generated)
-- **Multiple Formats**: Supports both JSON3 (modern) and XML (legacy) transcript formats
-- **Smart Parsing**: Automatically falls back to XML parsing if JSON parsing fails
+> **Note**: You need the extracted folder (not the ZIP file) when clicking "Load unpacked"
 
-### Transcript Processing
+## How It Works
 
-- **Format Options**: Plain text or timestamped versions (MM:SS format)
-- **Word Count**: Displays total word count for extracted transcripts
-- **Language Detection**: Shows language and type (manual/auto-generated) information
-- **HTML Entity Decoding**: Properly decodes HTML entities in transcript text
+### Technical Method
+
+This extension uses **JavaScript interception** to capture YouTube's internal caption requests:
+
+1. **XMLHttpRequest & Fetch Override**: The extension injects code that monitors all network requests YouTube makes
+2. **API Pattern Detection**: When YouTube requests `/api/timedtext` (their caption API), the extension captures the response
+3. **Data Extraction**: Pulls transcript text from YouTube's JSON3 or XML formats
+4. **Browser Storage**: Stores the cleaned transcript data locally using Chrome's storage API
+
+### What Happens Step by Step
+
+1. **Page Load**: Extension injects monitoring code into YouTube pages
+2. **Caption Request Detection**: YouTube requests captions → Extension copies the request
+3. **Response Capture**: YouTube receives caption data → Extension processes the same data
+4. **Format Parsing**: Extension converts YouTube's format to plain text
+5. **Local Storage**: Saves processed transcript in your browser
+6. **User Access**: Extension popup displays the formatted text
+
+### No External Servers
+
+The extension never sends data anywhere. It only:
+- Reads YouTube's existing API calls (same data YouTube already loads)
+- Processes that data locally in your browser
+- Stores results in Chrome's local storage system
+
+This is like having a "copy machine" that duplicates YouTube's caption requests for your own use.
+
+## What It Does
+
+### Automatic Capture
+
+- Grabs transcripts when you enable captions (CC button) on YouTube
+- Shows a notification when transcript is ready
+- Adds a number badge to the extension icon
+
+### Manual Extract
+
+- Click the extension icon on any YouTube page
+- Choose your language if multiple options exist
+- Get clean text in seconds
 
 ### Export Options
 
-- **Copy to Clipboard**: One-click copy with fallback for older browsers
-- **Download as TXT**: Downloads formatted file with metadata header including video title, ID, language, type, word count, and extraction timestamp
-- **Filename Format**: `youtube_transcript_[safe_title]_[video_id].txt`
+- Copy text to clipboard
+- Download as text file with video details
+- Choose plain text or timestamped format
 
-## Architecture
+## How to Use
 
-### Component Structure
+### Method 1: Auto-Capture (Easiest)
 
-```
-manifest.json          → Extension configuration (MV3)
-├── background.js      → Service worker for storage/notifications
-├── content.js         → Content script for YouTube DOM interaction
-├── inject.js          → Page context script for API interception
-├── popup.html/js/css  → Extension UI (500px fixed width)
-└── icons/             → Extension icons (16, 48, 128px)
-```
+1. Go to any YouTube video
+2. Click the CC (captions) button on the video player
+3. Watch for the browser notification
+4. Click the extension icon to view the transcript
 
-### Data Flow
+### Method 2: Manual Extract
 
-1. **inject.js** runs in page context, overrides `XMLHttpRequest` and `fetch`
-2. When YouTube requests `/api/timedtext`, inject.js captures the response
-3. Custom DOM event `youtubeTranscriptCaptured` sent to content script
-4. **content.js** processes transcript data and forwards to background
-5. **background.js** stores transcript and creates notification/badge
-6. **popup.js** retrieves stored transcript or manually fetches via content script
+1. Go to any YouTube video
+2. Click the extension icon
+3. Select language if prompted
+4. Copy or download the transcript
 
-### Message Passing
+## What You Get
 
-- `getVideoInfo`: popup → content (get video details and caption tracks)
-- `fetchTranscript`: popup → content (manual transcript extraction)
-- `transcriptCaptured`: content → background (auto-captured transcript data)
-- `getCapturedTranscript`: popup → background (retrieve stored transcript)
-- `clearCapturedTranscript`: popup → background (clear stored data)
+The extension creates clean, formatted text files with:
 
-## Technical Implementation
+- Video title and ID
+- Language and caption type (manual vs auto-generated)
+- Word count
+- Timestamp of when you extracted it
+- Option for timestamps (MM:SS format)
 
-### YouTube Integration
+Example filename: `youtube_transcript_How_to_Learn_Programming_abc123xyz.txt`
 
-- **DOM Selectors**: Multiple fallback selectors for video title extraction
-- **ytInitialPlayerResponse**: Extracts caption tracks from YouTube's player data
-- **SPA Navigation**: Uses History API hooks (`pushState`, `replaceState`, `popstate`) instead of MutationObserver for better performance
-- **URL Parameters**: Only adds `fmt=json3` parameter, preserves YouTube's original auth parameters
+## Supported Videos
+
+✅ **Works with:**
+
+- Public videos with captions
+- Unlisted videos you have access to
+- Auto-generated captions
+- Multiple languages (when available)
+- Live streams with captions
+
+❌ **Does not work with:**
+
+- Private videos
+- Videos without any captions
+- Copyright-protected content without captions
+
+## Browser Support
+
+Requires Chrome or Chromium-based browsers (Edge, Brave, Opera). Uses modern web features that need Manifest V3 support.
+
+## Permissions Explained
+
+This extension needs permission to:
+
+- **YouTube access**: Read video information and captions
+- **Storage**: Save transcripts temporarily
+- **Notifications**: Alert you when auto-capture works
+- **Active tab**: Know which YouTube video you're watching
+
+No data is sent to external servers. Everything stays in your browser.
+
+## Troubleshooting
+
+### Extension icon shows no badge
+
+- Make sure captions (CC) are enabled on the video
+- Try refreshing the YouTube page
+- Check that the video actually has captions available
+
+### "No transcripts available" message
+
+- Verify the video has captions (look for CC button)
+- Try selecting a different language if multiple are available
+- Some videos may have restricted caption access
+
+### Copied text looks messy
+
+- Choose the "Plain text" option instead of timestamped
+- The text includes automatic cleanup of HTML formatting
+
+## Advanced Features
+
+<details>
+<summary>Click to see technical details</summary>
+
+### How It Works Behind the Scenes
+
+The extension uses three main components:
+
+- **Background script**: Stores transcripts and shows notifications
+- **Content script**: Reads YouTube page information
+- **Page injection**: Captures YouTube's internal caption requests
+
+### Caption Format Support
+
+- **JSON3**: Modern YouTube format (preferred)
+- **XML**: Legacy format (automatic fallback)
+- **Multiple languages**: Supports all YouTube-available languages
 
 ### Storage Strategy
 
-- **Dual Storage**: Memory (`this.capturedTranscript`) + persistent (`chrome.storage.local`)
-- **Service Worker Compatibility**: Handles service worker termination/restart
-- **State Management**: Maintains video ID and caption tracks in content script
+Transcripts are stored in two places:
 
-### UI States
+- Browser memory (for current session)
+- Local browser storage (survives browser restart)
 
-- `loading`: Video information extraction
-- `error`: Error display with retry option
-- `video-info`: Video details and language selection
-- `no-transcripts`: No captions available message
-- `results`: Transcript display with options
-- `not-youtube`: Non-YouTube page message
+Your data never leaves your device.
 
-### Notification Handling
+</details>
 
-- **Popup Fallback**: If `chrome.action.openPopup()` fails, opens transcript viewer in new tab
-- **Notification ID**: Uses `"transcript-captured"` identifier
-- **Auto-Clear**: Notifications cleared on click
+## File Structure Reference
 
-### Error Handling
+<details>
+<summary>For developers: Extension architecture</summary>
 
-- **Async Responses**: All message handlers return `true` for asynchronous responses
-- **Fetch Failures**: Graceful fallback with HTTP status error messages
-- **Parse Failures**: JSON parse errors fall back to XML parsing
-- **Missing Elements**: Null checks for DOM elements and API responses
+```
+manifest.json          → Extension configuration
+├── background.js      → Handles storage and notifications
+├── content.js         → Interacts with YouTube pages
+├── inject.js          → Captures YouTube's caption API calls
+├── popup.html/js/css  → Extension interface
+└── icons/             → Extension icons
+```
 
-## Installation
+**Component Communication:**
 
-This is a development extension that loads directly into Chrome:
+- Extension popup ↔ Content script (video info requests)
+- Content script ↔ Background script (transcript storage)
+- Injected script → Content script (captured transcript data)
 
-1. Open `chrome://extensions/`
-2. Enable "Developer mode"
-3. Click "Load unpacked"
-4. Select the extension directory
+**Technical Implementation:**
 
-## Permissions
+- Intercepts YouTube's `/api/timedtext` requests
+- Parses both modern (JSON3) and legacy (XML) caption formats
+- Uses Chrome's Manifest V3 service worker architecture
+- Handles YouTube's single-page application navigation
 
-- `activeTab`: Access current YouTube tab
-- `storage`: Store captured transcripts
-- `notifications`: Show capture notifications
-- `*://*.youtube.com/*`: YouTube domain access
-
-## File Structure
-
-- **manifest.json**: MV3 configuration, runs content script at `document_start`
-- **inject.js**: 86 lines, runs in page context via web_accessible_resources
-- **content.js**: 420 lines, handles YouTube DOM interaction and API calls
-- **background.js**: 213 lines, service worker for storage and notifications
-- **popup.js**: 420 lines, manages UI state and user interactions
-- **popup.html**: 146 lines, structured UI with 6 distinct states
-- **popup.css**: 516 lines, responsive design with YouTube red theme
-
-## Browser Compatibility
-
-Requires Chrome/Chromium with Manifest V3 support. Uses modern APIs:
-
-- `chrome.action` (MV3 replacement for `chrome.browserAction`)
-- Service workers instead of background pages
-- `chrome.storage.local` for persistence
-- History API for SPA navigation detection
-- Modern `fetch` and `XMLHttpRequest` interception
+</details>
